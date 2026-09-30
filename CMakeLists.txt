@@ -94,8 +94,12 @@ if(MGZ_SYSROOT)
 	message(STATUS "Sysroot         : ${MGZ_SYSROOT}")
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MGZ_CROSS_FLAGS}")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MGZ_CROSS_FLAGS}")
+# Join explicitly: an unjoined list expands to a semicolon separated string,
+# which the shell would then treat as a command separator.
+string(REPLACE ";" " " MGZ_CROSS_FLAGS_STR "${MGZ_CROSS_FLAGS}")
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MGZ_CROSS_FLAGS_STR}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MGZ_CROSS_FLAGS_STR}")
 
 # ---- output layout -------------------------------------------------------
 
