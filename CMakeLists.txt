@@ -122,6 +122,16 @@ add_custom_target(gzvm_modules
 
 set(MGZ_MODULE_ZIP "${MGZ_OUTPUT_DIR}/mgz_unlock-${MGZ_KMI}.zip")
 
+# The CLI is optional inside the zip: the package job has it, a module-only
+# build does not.
+set(MGZ_MODULE_EXTRA "")
+if(EXISTS "${MGZ_OUTPUT_DIR}/mgz")
+	list(APPEND MGZ_MODULE_EXTRA
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"${MGZ_OUTPUT_DIR}/mgz"
+			"${CMAKE_BINARY_DIR}/module-stage/mgz")
+endif()
+
 add_custom_target(ksu_module
 	COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/module-stage"
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -130,6 +140,7 @@ add_custom_target(ksu_module
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		"${MGZ_OUTPUT_DIR}/gzvm_unlock.ko"
 		"${CMAKE_BINARY_DIR}/module-stage/gzvm_unlock.ko"
+	${MGZ_MODULE_EXTRA}
 	COMMAND ${CMAKE_COMMAND} -E rm -f "${MGZ_MODULE_ZIP}"
 	COMMAND ${CMAKE_COMMAND} -E tar cf "${MGZ_MODULE_ZIP}" --format=zip
 		-- .

@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      android_version:
+        description: Android major version of the target device
+        required: true
+        default: '16'
+      kernel_version:
+        description: Linux kernel MAJOR version of the target device
+        required: true
+        default: '6.12'
+      android_abi:
+        description: ABI for the mgz CLI
+        required: true
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+
+env:
+  ANDROID_VERSION: ${{ inputs.android_version || '16' }}
+  KERNEL_VERSION: ${{ inputs.kernel_version || '6.12' }}
+  KMI: android${{ inputs.android_version || '16' }}-${{ inputs.kernel_version || '6.12' }}
+  ABI: ${{ inputs.android_abi || 'arm64-v8a' }}
+
+jobs:
+  kernel-modules:
+    name: Kernel modules (${{ env.KMI }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install host toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang lld llvm bc bison flex libssl-dev libelf-dev cpio kmod zip
+
+      - name: Fetch minimal GKI kernel source
+        run: |
+          chmod +x scripts/*.sh
+          ./scripts/fetch-kernel.sh \
+            --android "${ANDROID_VERSION}" \
+            --kernel "${KERNEL_VERSION}" \
+            --dest kernel-src
+
+      - name: Prepare kernel build tree
+        run: |
+          ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+
+      - name: Build gzvm_probe.ko and gzvm_unlock.ko
+        run: |
+          cmake -B build \
+            -DMGZ_ANDROID_VERSION="${ANDROID_VERSION}" \
+            -DMGZ_KERNEL_VERSION="${KERNEL_VERSION}" \
+            -DMGZ_ANDROID_ABI=host \
+            -DMGZ_KERNEL_DIR="${PWD}/kbuild"
+          cmake --build build --target gzvm_modules
+          ls -l build/out/*/*.ko
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gzvm-modules-${{ env.KMI }}
+          path: build/out/*/*.ko
+          if-no-files-found: error
+
+  cli:
+    name: CLI (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        abi: ${{ inputs.android_abi && fromJSON(format('["{0}"]', inputs.android_abi)) || fromJSON('["arm64-v8a", "armeabi-v7a"]') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Build mgz
+        run: |
+          cmake -B build \
+            -DMGZ_ANDROID_VERSION="${ANDROID_VERSION}" \
+            -DMGZ_KERNEL_VERSION="${KERNEL_VERSION}" \
+            -DMGZ_ANDROID_ABI="${{ matrix.abi }}" \
+            -DMGZ_ANDROID_NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
+          cmake --build build --target mgz
+          ls -l build/out/*/mgz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mgz-${{ matrix.abi }}-${{ env.KMI }}
+          path: build/out/*/mgz
+          if-no-files-found: error
+
+  package:
+    name: Package KernelSU module
+    runs-on: ubuntu-latest
+    needs: [kernel-modules, cli]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Android NDK
+        id: setup-ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-${{ env.KMI }}'
+          path: artifacts
+
+      - name: Assemble output directory
+        run: |
+          OUTDIR="build/out/${ABI}-${KMI}"
+          mkdir -p "$OUTDIR"
+          find artifacts -path '*gzvm-modules*' -name '*.ko' -exec cp {} "$OUTDIR"/ \;
+          find artifacts -path "*mgz-${ABI}-*" -name 'mgz' -exec cp {} "$OUTDIR"/ \;
+          ls -l "$OUTDIR"
+
+      - name: Package
+        run: |
+          cmake -B build \
+            -DMGZ_ANDROID_VERSION="${ANDROID_VERSION}" \
+            -DMGZ_KERNEL_VERSION="${KERNEL_VERSION}" \
+            -DMGZ_ANDROID_ABI="${ABI}" \
+            -DMGZ_ANDROID_NDK="${{ steps.setup-ndk.outputs.ndk-path }}"
+          cmake --build build --target ksu_module
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mgz-bundle-${{ env.KMI }}
+          path: build/out/*/*.zip
+          if-no-files-found: error
