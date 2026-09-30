@@ -161,7 +161,7 @@ static int __init gzvm_aux_init(void)
 
 ```bash
 # 1. 构建（见仓库 README 与 GitHub Actions 工作流）
-cmake -B build -DANDROID_VERSION=16 -DKERNEL_VERSION=6.12
+cmake -B build -DMGZ_ANDROID_VERSION=16 -DMGZ_KERNEL_VERSION=6.12
 cmake --build build --target gzvm_modules
 
 # 2. 推送并单次加载

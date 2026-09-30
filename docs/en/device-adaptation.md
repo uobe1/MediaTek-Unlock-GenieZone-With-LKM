@@ -129,7 +129,7 @@ cat /proc/sys/kernel/modules_disabled
 Build with the two major versions of your device:
 
 ```bash
-cmake -B build -DANDROID_VERSION=15 -DKERNEL_VERSION=6.6
+cmake -B build -DMGZ_ANDROID_VERSION=15 -DMGZ_KERNEL_VERSION=6.6
 cmake --build build --target gzvm_modules
 ```
 

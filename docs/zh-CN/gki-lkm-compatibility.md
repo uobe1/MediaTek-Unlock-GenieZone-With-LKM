@@ -27,15 +27,17 @@
 
 Android GKI 将内核核心与厂商模块分离。外部模块必须与运行中内核的 KMI 精确匹配。
 
-| Android 版本 | Linux 内核 | KMI | 内核分支 |
-|---|---|---|---|
-| Android 12 | 5.10 | `android12-5.10` | `common-android12-5.10` |
-| Android 13 | 5.10 | `android13-5.10` | `common-android13-5.10` |
-| Android 13 | 5.15 | `android13-5.15` | `common-android13-5.15` |
-| Android 14 | 5.15 | `android14-5.15` | `common-android14-5.15` |
-| Android 14 | 6.1 | `android14-6.1` | `common-android14-6.1` |
-| Android 15 | 6.6 | `android15-6.6` | `common-android15-6.6` |
-| Android 16 | 6.12 | `android16-6.12` | `common-android16-6.12` |
+| Android 版本 | Linux 内核 | KMI |
+|---|---|---|
+| Android 12 | 5.10 | `android12-5.10` |
+| Android 13 | 5.10 | `android13-5.10` |
+| Android 13 | 5.15 | `android13-5.15` |
+| Android 14 | 5.15 | `android14-5.15` |
+| Android 14 | 6.1 | `android14-6.1` |
+| Android 15 | 6.6 | `android15-6.6` |
+| Android 16 | 6.12 | `android16-6.12` |
+
+`kernel/common` 仓库的分支名就是 KMI 名本身；内核 **manifest** 仓库则使用带 `common-` 前缀的同一名称，因此 `repo init -b common-android16-6.12` 与直接克隆 `android16-6.12` 分支得到的是同一份源码。
 
 因此：
 
@@ -61,7 +63,7 @@ Google 只在同一个 `<android>-<kernel>` 代次内保证 KMI 稳定性，且�
 
 2. **推导 KMI** —— Android 16 + Linux 6.12 → `android16-6.12`。
 
-3. **针对该 KMI 构建** —— `ANDROID_VERSION=16 KERNEL_VERSION=6.12`，对应分支 `common-android16-6.12`。
+3. **针对该 KMI 构建** —— `MGZ_ANDROID_VERSION=16 MGZ_KERNEL_VERSION=6.12`，对应分支 `android16-6.12`。
 
 4. **检查模块依赖的内核配置**
 
@@ -107,7 +109,7 @@ Google 只在同一个 `<android>-<kernel>` 代次内保证 KMI 稳定性，且�
 ## 6. 结论
 
 * 外部 GKI LKM 的“通用”指*每个 KMI 代次一份构建*，而非一个二进制通吃。
-* Android 16 / Linux 6.12 → KMI `android16-6.12` → 分支 `common-android16-6.12`。
+* Android 16 / Linux 6.12 → KMI `android16-6.12` → 分支 `android16-6.12`。
 * 构建外部 LKM 不需要 `lunch <product>`；完整 AOSP 构建才需要。
 * 通用性仍要求：KMI 精确匹配、内核选项齐备、加载策略允许。
 

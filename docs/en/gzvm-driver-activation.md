@@ -184,7 +184,7 @@ symbol list, a retry loop, and a `/dev/gzvm` existence check.
 
 ```bash
 # 1. build (see ../README.md and the GitHub Actions workflow)
-cmake -B build -DANDROID_VERSION=16 -DKERNEL_VERSION=6.12
+cmake -B build -DMGZ_ANDROID_VERSION=16 -DMGZ_KERNEL_VERSION=6.12
 cmake --build build --target gzvm_modules
 
 # 2. push and load once

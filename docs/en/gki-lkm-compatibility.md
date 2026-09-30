@@ -29,15 +29,20 @@ This project builds an external GKI LKM, so no `lunch <product>` step exists.
 Android GKI splits the core kernel from vendor modules. External modules must
 match the KMI of the running kernel exactly.
 
-| Android version | Linux kernel | KMI | Kernel branch |
-|---|---|---|---|
-| Android 12 | 5.10 | `android12-5.10` | `common-android12-5.10` |
-| Android 13 | 5.10 | `android13-5.10` | `common-android13-5.10` |
-| Android 13 | 5.15 | `android13-5.15` | `common-android13-5.15` |
-| Android 14 | 5.15 | `android14-5.15` | `common-android14-5.15` |
-| Android 14 | 6.1 | `android14-6.1` | `common-android14-6.1` |
-| Android 15 | 6.6 | `android15-6.6` | `common-android15-6.6` |
-| Android 16 | 6.12 | `android16-6.12` | `common-android16-6.12` |
+| Android version | Linux kernel | KMI |
+|---|---|---|
+| Android 12 | 5.10 | `android12-5.10` |
+| Android 13 | 5.10 | `android13-5.10` |
+| Android 13 | 5.15 | `android13-5.15` |
+| Android 14 | 5.15 | `android14-5.15` |
+| Android 14 | 6.1 | `android14-6.1` |
+| Android 15 | 6.6 | `android15-6.6` |
+| Android 16 | 6.12 | `android16-6.12` |
+
+The `kernel/common` repository uses the KMI name itself as the branch name;
+the kernel *manifest* repository uses the same name with a `common-` prefix,
+so `repo init -b common-android16-6.12` and a plain clone of branch
+`android16-6.12` land on the same sources.
 
 Therefore:
 
@@ -70,8 +75,8 @@ Android major version and the kernel major version — and defaults to
 
 2. **Derive the KMI** — Android 16 + Linux 6.12 → `android16-6.12`.
 
-3. **Build against that KMI** — `ANDROID_VERSION=16 KERNEL_VERSION=6.12`, which
-   selects branch `common-android16-6.12`.
+3. **Build against that KMI** — `MGZ_ANDROID_VERSION=16 MGZ_KERNEL_VERSION=6.12`, which
+   selects branch `android16-6.12`.
 
 4. **Check the kernel configuration** the module relies on:
 
@@ -119,7 +124,7 @@ Android major version and the kernel major version — and defaults to
 * Portability for an external GKI LKM means *one build per KMI generation*, not
   one binary for everything.
 * Android 16 / Linux 6.12 → KMI `android16-6.12` → branch
-  `common-android16-6.12`.
+  `android16-6.12`.
 * Building an external LKM needs no `lunch <product>`; full AOSP builds do.
 * Portability still requires an exact KMI match, the right kernel options and a
   permissive load policy.
