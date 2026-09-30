@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# MediaTek-Unlock-GenieZone-With-LKM
+# ---------------------------------------------------------------------------
+
+# ---- Build outputs --------------------------------------------------------
+build/
+out/
+cmake-build-*/
+*.o
+*.ko
+*.mod
+*.mod.c
+*.mod.o
+*.cmd
+*.d
+*.order
+*.symvers
+*.markers
+modules.builtin
+Module.symvers
+.tmp_versions/
+
+# ---- Compiled CLI / packaged artifacts -----------------------------------
+*.a
+*.so
+lkm_build/
+*.zip
+!module/*.zip
+
+# ---- Downloaded / generated kernel sources -------------------------------
+aosp/
+kernel-src/
+common-android*/
+.gki/
+
+# ---- Agent / AI tooling private directories ------------------------------
+.codebuddy/
+.claude/
+.cursor/
+.continue/
+.aider*
+.copilot/
+.windsurf/
+.qodo/
+.trae/
+.zed/ai/
+.roo/
+.kilocode/
+.codex/
+.crush/
+.amp/
+.factory/
+.droid/
+AGENTS.local.md
+CLAUDE.local.md
+*.local.md
+
+# ---- Editor / OS noise ---------------------------------------------------
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# ---- Local scratch -------------------------------------------------------
+*.log
+.tmp*
+tmp/
