@@ -98,7 +98,6 @@ static int __init gzvm_unlock_init(void)
 	int (*probe_entry)(struct platform_device *pdev);
 	void *addr;
 	unsigned int attempt;
-	int ret;
 
 	addr = gzvm_resolve_probe_entry();
 	if (!addr) {
