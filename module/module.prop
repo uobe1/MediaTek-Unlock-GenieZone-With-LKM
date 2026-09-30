@@ -1,0 +1,6 @@
+id=mgz_unlock
+name=MediaTek GenieZone Unlock
+version=v0.1.0
+versionCode=1
+author=MediaTek-Unlock-GenieZone-With-LKM contributors
+description=Load gzvm_unlock.ko on boot to expose /dev/gzvm when the device tree hides GenieZone.
