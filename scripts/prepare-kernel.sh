@@ -5,15 +5,18 @@
 #
 #   ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
 #
-# `modules_prepare` is enough for external modules; it builds the host tools
-# and generates include/generated, .config and Module.symvers without
-# compiling the whole kernel.
+# Building vmlinux is what produces the Module.symvers of the kernel, and
+# external modules need it: without it modpost cannot stamp the modules with
+# the symbol CRCs, and a GKI kernel with CONFIG_MODVERSIONS then refuses to
+# load them. `modules_prepare` alone is not enough -- it never runs modpost on
+# vmlinux. Use --quick when a Module.symvers is already available.
 set -euo pipefail
 
 SRC="kernel-src"
 OUT="kbuild"
 ARCH="arm64"
 JOBS="$(nproc 2>/dev/null || echo 4)"
+QUICK=0
 
 usage() {
 	cat <<'EOF'
@@ -23,6 +26,7 @@ Usage: prepare-kernel.sh [options]
   --out  <dir>   build output directory  (default kbuild)
   --arch <arch>  target architecture     (default arm64)
   -j <n>         parallel jobs           (default nproc)
+  --quick        only run modules_prepare (no Module.symvers)
   -h, --help     show this help
 EOF
 }
@@ -33,6 +37,7 @@ while [ $# -gt 0 ]; do
 	--out) OUT="$2"; shift 2 ;;
 	--arch) ARCH="$2"; shift 2 ;;
 	-j) JOBS="$2"; shift 2 ;;
+	--quick) QUICK=1; shift ;;
 	-h|--help) usage; exit 0 ;;
 	*) echo "unknown option: $1" >&2; usage; exit 1 ;;
 	esac
@@ -55,4 +60,11 @@ echo "config : ${CONFIG}"
 make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" "${CONFIG}"
 make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" modules_prepare
 
+if [ "${QUICK}" -eq 0 ]; then
+	# Produces ${OUT}/Module.symvers, which the modules are stamped against.
+	make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" vmlinux
+fi
+
 echo "kernel build tree ready at ${OUT}"
+[ -f "${OUT}/Module.symvers" ] && echo "Module.symvers: present" ||
+	echo "Module.symvers: MISSING (modules will lack symbol CRCs)"
