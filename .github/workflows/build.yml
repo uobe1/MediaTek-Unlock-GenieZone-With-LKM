@@ -104,6 +104,9 @@ jobs:
         with:
           ndk-version: r27c
 
+      - name: Make sure zip is available
+        run: command -v zip || (sudo apt-get update && sudo apt-get install -y zip)
+
       - uses: actions/download-artifact@v4
         with:
           pattern: '*-${{ env.KMI }}'

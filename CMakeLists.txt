@@ -159,9 +159,9 @@ add_custom_target(ksu_module
 		"${CMAKE_BINARY_DIR}/module-stage/gzvm_unlock.ko"
 	${MGZ_MODULE_EXTRA}
 	COMMAND ${CMAKE_COMMAND} -E rm -f "${MGZ_MODULE_ZIP}"
-	COMMAND ${CMAKE_COMMAND} -E tar cf "${MGZ_MODULE_ZIP}" --format=zip
-		-- .
-	WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/module-stage"
+	# The KernelSU installer expects the module files at the root of the
+	# archive, so the paths are dropped on purpose.
+	COMMAND zip -rj "${MGZ_MODULE_ZIP}" "${MGZ_MODULE_STAGE}"
 	COMMENT "Packaging the KernelSU module: ${MGZ_MODULE_ZIP}"
 	VERBATIM
 )
