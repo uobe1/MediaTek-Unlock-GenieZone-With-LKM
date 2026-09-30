@@ -77,7 +77,6 @@ int mgz_root_init(struct mgz_root *root)
 	 * ksud is visible from a `su -c` shell even when sudo cannot see it.
 	 * Fall back to the well known absolute path.
 	 */
-	snprintf(out, sizeof(out), "");
 	if (root->su) {
 		char cmd[256];
 
