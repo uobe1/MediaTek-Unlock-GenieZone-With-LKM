@@ -136,7 +136,9 @@ mgz <命令> [选项] [模块路径]
 
 ### 权限获取
 
-Root 通过 `sudo` 获取，失败时退化为 `su -c` —— 在现代环境中 `sudo` 的兼容性更好。`ksud` 位于 `/data/adb/ksu/bin`，通常只有 `su -c` 的 shell 才能看到，因此 KernelSU 相关操作一律走 `su -c`。存在 `ksud` 时使用 `ksud insmod` 加载模块，它会**保留 kallsyms 访问能力**，而这正是基于 `kprobe` 的符号解析所需要的。
+Root 通过 `sudo` 获取，失败时退化为 `su -c` —— 在现代环境中 `sudo` 的兼容性更好。`ksud` 位于 `/data/adb/ksu/bin`，通常只有 `su -c` 的 shell 才能看到，因此 KernelSU 相关操作一律走 `su -c`。
+
+加载模块有自己的策略链：首先尝试普通 `insmod` —— 它兼容性最好，且在 MODVERSIONS 生效时接受来自同一 KMI 代次任意内核树构建的模块 —— 失败后把 SELinux 切到宽容模式重试，最后在 KernelSU 存在时使用 `ksud insmod`。若因 vermagic 不匹配仍被拒绝，CLI 会明确指出，并指向适配指南中的重建说明。
 
 ---
 
@@ -192,19 +194,24 @@ cmake --build build --target dist
 | `ksu_module` | 可刷入的 KernelSU zip |
 | `dist` | 以上全部 |
 
-构建模块只需要该 KMI 代次的**已准备好的内核构建目录** —— 配置、生成的头文件，以及最重要的、承载导出符号 CRC 的 `Module.symvers`。内核本体从来不需要编译。Driver Development Kit（DDK）正是按 KMI 逐个提供这个目录，这是推荐路径：
+构建模块只需要该 KMI 代次的**已准备好的内核构建目录** —— 配置、生成的头文件，以及最重要的、承载导出符号 CRC 的 `Module.symvers`。内核本体从来不需要编译。`build-modules.sh` 按策略链解析这个目录：
+
+| 策略 | 来源 | 代价 |
+|---|---|---|
+| `ddk`（默认首选） | Driver Development Kit 镜像的 `kdir/<kmi>` | 即时 |
+| `release` | 从 ci.android.com 下载对应 GKI 发布构建的 `Module.symvers`，放入 `modules_prepare` 后的树 | 小体积下载 |
+| `modules` | 浅克隆 `kernel/common` 并构建其 `=m` 部分（它们正是符号表的来源） | 数分钟 |
+| `vmlinux` | 整个内核核心 | 兜底，需 `--with-vmlinux` 显式开启 |
 
 ```bash
-# 在对应 KMI 的 DDK 镜像/容器内
+# 在对应 KMI 的 DDK 镜像/容器内 —— ddk 一步命中
 ./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
-```
 
-没有 DDK 时，也可以用 `kernel/common` 的浅克隆自行产出同一目录。此时只构建 `=m` 部分（它们才是 `Module.symvers` 的来源）；构建 vmlinux 排在它们之后作为兜底：
+# 没有 DDK？让策略链落到 release 产物
+./scripts/build-modules.sh --no-ddk --kmi android16-6.12
 
-```bash
-./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # 浅克隆，单个项目
-./scripts/prepare-kernel.sh --src kernel-src --out kbuild
-./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
+# 或显式限定
+./scripts/build-modules.sh --strategy modules --kmi android16-6.12
 ```
 
 GitHub Actions 工作流做同样的事，并把两个版本作为入参（默认 `16` 与 `6.12`）；产物为 `gzvm-modules-<kmi>`、`mgz-<abi>-<kmi>` 与 `mgz-bundle-<kmi>`。
@@ -218,6 +225,19 @@ cmake -B build \
 ```
 
 支持 `arm64-v8a`、`armeabi-v7a` 以及旧版 `armeabi`；本机构建（`-DMGZ_ANDROID_ABI=host`）可直接在设备上完成。
+
+### 在设备本机构建
+
+CLI 完全可以在已 Root 的手机上构建并使用：Termux 自带 clang，本机构建产物立即可用 —— 不需要 NDK，也不需要内核树：
+
+```bash
+pkg install clang cmake make
+cmake -B build -DMGZ_ANDROID_ABI=host
+cmake --build build --target mgz
+build/out/host-*/mgz check
+```
+
+内核模块则不同：它需要该 KMI 的已准备好的构建目录（`Module.symvers` 与生成的头文件），由 DDK 或 release 策略提供，手机本体上没有可编译的东西。
 
 ---
 

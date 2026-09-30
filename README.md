@@ -152,9 +152,14 @@ it is omitted: current directory, `/data/local/tmp/lkm_build`,
 Root is taken through `sudo`, falling back to `su -c`, because `sudo` is the
 more compatible of the two on modern setups. `ksud` lives in
 `/data/adb/ksu/bin`, which is normally only visible from a `su -c` shell, so
-KernelSU operations always run through it. When `ksud` is present the module is
-loaded with `ksud insmod`, which loads it **with kallsyms access** — exactly
-what `kprobe` based symbol resolution needs.
+KernelSU operations always run through it.
+
+Loading a module goes down its own chain: a plain `insmod` first — it is the
+most portable path and, with MODVERSIONS, it accepts a module built from any
+tree of the same KMI generation — then the same thing with SELinux set to
+permissive, and finally `ksud insmod` when KernelSU is present. When even that
+is refused because of a vermagic mismatch, the CLI says so and points at the
+rebuild instructions in the adaptation guide.
 
 ---
 
@@ -219,22 +224,24 @@ Targets:
 Building a module needs only the **prepared kernel build directory** of the
 KMI generation — the config, the generated headers and above all
 `Module.symvers`, which carries the export CRCs. The kernel itself is never
-compiled. The Driver Development Kit ships exactly that, one directory per
-KMI, and that is the recommended path:
+compiled. `build-modules.sh` resolves that directory through a strategy chain:
+
+| Strategy | What it uses | Cost |
+|---|---|---|
+| `ddk` (default first) | the Driver Development Kit image's `kdir/<kmi>` | instant |
+| `release` | the `Module.symvers` of the matching GKI release build from ci.android.com, dropped into a `modules_prepare`'d tree | a small download |
+| `modules` | the `=m` parts of a shallow `kernel/common` clone, which is what produces `Module.symvers` | a few minutes |
+| `vmlinux` | the whole core kernel | last resort, opt-in with `--with-vmlinux` |
 
 ```bash
-# inside the DDK image/container for the wanted KMI
+# inside the DDK image/container for the wanted KMI — ddk resolves at once
 ./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
-```
 
-Without the DDK, the same directory can be produced from a shallow clone of
-`kernel/common`. Only the `=m` parts are built, since they are what produces
-`Module.symvers`; building vmlinux is the last resort behind them:
+# no DDK? let the chain fall through to the release artifacts
+./scripts/build-modules.sh --no-ddk --kmi android16-6.12
 
-```bash
-./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # shallow, one project
-./scripts/prepare-kernel.sh --src kernel-src --out kbuild
-./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
+# or restrict it explicitly
+./scripts/build-modules.sh --strategy modules --kmi android16-6.12
 ```
 
 The GitHub Actions workflow does the same and takes both versions as inputs
@@ -251,6 +258,23 @@ cmake -B build \
 
 `arm64-v8a`, `armeabi-v7a` and legacy `armeabi` are supported; a native build
 (`-DMGZ_ANDROID_ABI=host`) works on the device itself.
+
+### Building on the device
+
+The CLI can be built and used entirely on a rooted phone: Termux ships clang,
+and the native build produces a binary that runs right away — no NDK, no
+kernel tree:
+
+```bash
+pkg install clang cmake make
+cmake -B build -DMGZ_ANDROID_ABI=host
+cmake --build build --target mgz
+build/out/host-*/mgz check
+```
+
+The kernel modules are different: they need the prepared build directory of
+the KMI (`Module.symvers` and the generated headers), which the DDK or the
+release strategy provides. There is nothing to compile on the phone itself.
 
 ---
 

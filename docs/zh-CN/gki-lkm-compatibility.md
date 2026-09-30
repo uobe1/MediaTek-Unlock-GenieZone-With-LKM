@@ -50,6 +50,15 @@ Android GKI 将内核核心与厂商模块分离。外部模块必须与运行�
 
 Google 只在同一个 `<android>-<kernel>` 代次内保证 KMI 稳定性，且该保证覆盖内核**大版本**：`6.12.x` 全部属于 `android16-6.12`，针对 `6.12.30` 构建的模块可加载在同一 Android 代次的任意 `6.12.y` 内核上。这正是构建只需两个入参（Android 大版本与内核大版本）的原因，默认值分别为 `16` 与 `6.12`。
 
+### 2.2 为什么 point release 不同也能加载
+
+模块携带两个版本载体，在同一 KMI 代次内它们都容忍不同的 point release：
+
+* **符号 CRC 表（`__versions`）** —— CRC 按 KMI 计算且在代次内唯一，因此同一 Android 代次的所有 `6.12.y` 内核都匹配。这就是 KMI 承诺的本质。
+* **vermagic 字符串** —— 在 MODVERSIONS 生效时，内核只比较标志部分（`SMP preempt mod_unload modversions aarch64`），并跳过其前的 release 段。
+
+因此用 DDK 的 `6.12.76-4k` 树构建的模块，在 `6.12.30-android16-...` 的设备上通过普通 `insmod` 即可加载 —— 不需要任何特殊的加载器。`mgz install` 也是首先尝试普通 `insmod`；`ksud insmod` 只是它被拦截时的回退手段，并非必需。
+
 ---
 
 ## 3. 选择或构建正确的 LKM

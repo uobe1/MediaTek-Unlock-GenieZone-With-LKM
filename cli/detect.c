@@ -58,49 +58,6 @@ static int dir_has_match(const char *dir, const char *needle)
 	return found;
 }
 
-/*
- * Search a whole file, not line by line: a .ko is binary and the vermagic
- * string is not separated by newlines.
- */
-static int file_contains(const char *path, const char *needle)
-{
-	FILE *fp;
-	char *buf;
-	long size;
-	int found = 0;
-
-	fp = fopen(path, "rb");
-	if (!fp)
-		return 0;
-
-	if (fseek(fp, 0, SEEK_END) != 0) {
-		fclose(fp);
-		return 0;
-	}
-
-	size = ftell(fp);
-	if (size <= 0) {
-		fclose(fp);
-		return 0;
-	}
-
-	rewind(fp);
-	buf = malloc((size_t)size);
-	if (!buf) {
-		fclose(fp);
-		return 0;
-	}
-
-	if (fread(buf, 1, (size_t)size, fp) == (size_t)size)
-		found = memmem(buf, (size_t)size, needle,
-			       strlen(needle)) != NULL;
-
-	free(buf);
-	fclose(fp);
-
-	return found;
-}
-
 static int file_has_symbol(const char *path, const char *symbol)
 {
 	FILE *fp;

@@ -62,6 +62,23 @@ the same Android generation. This is why the build takes two inputs — the
 Android major version and the kernel major version — and defaults to
 `16` and `6.12`.
 
+### 2.2 Why a different point release still loads
+
+A module carries two version artefacts, and both tolerate a different point
+release inside one KMI generation:
+
+* **The symbol CRC table (`__versions`)** — the CRCs are computed per KMI and
+  are unique within it, so they match across all `6.12.y` of the same Android
+  generation. This is what the KMI promise is made of.
+* **The vermagic string** — with MODVERSIONS in play, the kernel compares only
+  the flag part (`SMP preempt mod_unload modversions aarch64`) and skips the
+  release segment in front of it.
+
+A build made from the DDK's `6.12.76-4k` tree therefore loads through a plain
+`insmod` on a `6.12.30-android16-...` device — no special loader needed. Plain
+`insmod` is also what `mgz install` tries first; `ksud insmod` is only a
+fallback for environments where it is blocked, not a requirement.
+
 ---
 
 ## 3. Choosing or building the right LKM

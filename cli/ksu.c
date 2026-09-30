@@ -11,8 +11,8 @@
  *   - service.sh    late_start service stage, standard boot (recommended)
  *   - late-load.sh  late-load mode, replaces post-fs-data.sh
  *
- * The module is loaded with `ksud insmod` whenever ksud exists, because that
- * loads the module with kallsyms access, which kprobe resolution needs.
+ * The module is loaded with a plain insmod first; ksud insmod is only the
+ * fallback for environments where that is blocked.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -67,11 +67,12 @@ static const char *const load_sh =
 	"  load_gzvm_if_needed || { log 'gzvm.ko is not available'; return 1; }\n"
 	"  wait_for_gzvm || { log 'gzvm.ko did not show up'; return 1; }\n"
 	"\n"
-	"  if [ -x /data/adb/ksu/bin/ksud ]; then\n"
+	"  # Plain insmod already works with MODVERSIONS (the release part of the\n"
+	"  # vermagic is ignored); ksud insmod is the fallback when it is blocked.\n"
+	"  insmod \"$KO\"\n"
+	"  rc=$?\n"
+	"  if [ $rc -ne 0 ] && [ -x /data/adb/ksu/bin/ksud ]; then\n"
 	"    /data/adb/ksu/bin/ksud insmod \"$KO\"\n"
-	"    rc=$?\n"
-	"  else\n"
-	"    insmod \"$KO\"\n"
 	"    rc=$?\n"
 	"  fi\n"
 	"\n"
@@ -267,17 +268,43 @@ int cmd_install(int argc, char **argv, const struct mgz_root *root)
 	mgz_shell_quote(ko_path, quoted, sizeof(quoted));
 
 	/*
-	 * ksud insmod loads the module with kallsyms access, which is what
-	 * kprobe based symbol resolution needs; plain insmod is the fallback.
+	 * Plain insmod first: it is the most portable path and, with
+	 * MODVERSIONS, the kernel ignores the release part of the vermagic, so
+	 * a module built from another 6.12.y tree loads fine. The later steps
+	 * only exist for the environments where this is blocked.
 	 */
 	snprintf(cmd, sizeof(cmd), "insmod %s", quoted);
-	if (root->ksud)
+	rc = mgz_root_exec(root, cmd, out, sizeof(out));
+
+	/* SELinux is the next most likely blocker; permissive is the escape. */
+	if (rc != 0) {
+		char selinux[64];
+
+		mgz_root_exec(root, "getenforce", selinux, sizeof(selinux));
+		if (strstr(selinux, "Enforcing")) {
+			mgz_log(MGZ_LOG_WARN,
+				"insmod failed, retrying with SELinux permissive");
+			mgz_root_exec(root, "setenforce 0", NULL, 0);
+			rc = mgz_root_exec(root, cmd, out, sizeof(out));
+			mgz_root_exec(root, "setenforce 1", NULL, 0);
+		}
+	}
+
+	/* ksud insmod is the last resort, it is KernelSU specific. */
+	if (rc != 0 && root->ksud) {
+		mgz_log(MGZ_LOG_WARN, "falling back to ksud insmod");
 		rc = mgz_root_exec_ksud(root, cmd, out, sizeof(out));
-	else
-		rc = mgz_root_exec(root, cmd, out, sizeof(out));
+	}
 
 	if (rc != 0) {
-		mgz_log(MGZ_LOG_ERR, "insmod failed: %s", out);
+		if (strstr(out, "version magic") || strstr(out, "vermagic")) {
+			mgz_log(MGZ_LOG_ERR,
+				"the kernel rejected the vermagic; rebuild with "
+				"the device's exact release, see the adaptation "
+				"guide");
+		} else {
+			mgz_log(MGZ_LOG_ERR, "insmod failed: %s", out);
+		}
 		snprintf(cmd, sizeof(cmd), "dmesg | tail -20");
 		if (mgz_root_exec(root, cmd, out, sizeof(out)) == 0)
 			mgz_log(MGZ_LOG_RAW, "%s", out);

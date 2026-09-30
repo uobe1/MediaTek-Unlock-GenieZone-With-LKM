@@ -42,13 +42,12 @@ mgz_load() {
   load_gzvm_if_needed || { log 'gzvm.ko is not available'; return 1; }
   wait_for_gzvm || { log 'gzvm.ko did not show up'; return 1; }
 
-  # ksud insmod loads the module with kallsyms access, which is what kprobe
-  # based symbol resolution needs.
-  if [ -x /data/adb/ksu/bin/ksud ]; then
+  # Plain insmod already works with MODVERSIONS (the release part of the
+  # vermagic is ignored); ksud insmod is the fallback when it is blocked.
+  insmod "$KO"
+  rc=$?
+  if [ $rc -ne 0 ] && [ -x /data/adb/ksu/bin/ksud ]; then
     /data/adb/ksu/bin/ksud insmod "$KO"
-    rc=$?
-  else
-    insmod "$KO"
     rc=$?
   fi
 

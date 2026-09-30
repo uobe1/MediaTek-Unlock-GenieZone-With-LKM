@@ -138,6 +138,7 @@ add_custom_target(gzvm_modules
 # ---- KernelSU module zip -------------------------------------------------
 
 set(MGZ_MODULE_ZIP "${MGZ_OUTPUT_DIR}/mgz_unlock-${MGZ_KMI}.zip")
+set(MGZ_MODULE_STAGE "${CMAKE_BINARY_DIR}/module-stage")
 
 # The CLI is optional inside the zip: the package job has it, a module-only
 # build does not.
@@ -146,17 +147,17 @@ if(EXISTS "${MGZ_OUTPUT_DIR}/mgz")
 	list(APPEND MGZ_MODULE_EXTRA
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different
 			"${MGZ_OUTPUT_DIR}/mgz"
-			"${CMAKE_BINARY_DIR}/module-stage/mgz")
+			"${MGZ_MODULE_STAGE}/mgz")
 endif()
 
 add_custom_target(ksu_module
-	COMMAND ${CMAKE_COMMAND} -E rm -rf "${CMAKE_BINARY_DIR}/module-stage"
+	COMMAND ${CMAKE_COMMAND} -E rm -rf "${MGZ_MODULE_STAGE}"
 	COMMAND ${CMAKE_COMMAND} -E copy_directory
 		"${CMAKE_CURRENT_SOURCE_DIR}/module"
-		"${CMAKE_BINARY_DIR}/module-stage"
+		"${MGZ_MODULE_STAGE}"
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different
 		"${MGZ_OUTPUT_DIR}/gzvm_unlock.ko"
-		"${CMAKE_BINARY_DIR}/module-stage/gzvm_unlock.ko"
+		"${MGZ_MODULE_STAGE}/gzvm_unlock.ko"
 	${MGZ_MODULE_EXTRA}
 	COMMAND ${CMAKE_COMMAND} -E rm -f "${MGZ_MODULE_ZIP}"
 	# The KernelSU installer expects the module files at the root of the
