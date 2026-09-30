@@ -5,11 +5,15 @@
 #
 #   ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
 #
-# Building vmlinux is what produces the Module.symvers of the kernel, and
-# external modules need it: without it modpost cannot stamp the modules with
-# the symbol CRCs, and a GKI kernel with CONFIG_MODVERSIONS then refuses to
-# load them. `modules_prepare` alone is not enough -- it never runs modpost on
-# vmlinux. Use --quick when a Module.symvers is already available.
+# This script exists only to obtain the Module.symvers of a KMI generation:
+# the export list with the symbol CRCs that external modules are stamped
+# against. A module without them is refused by a kernel built with
+# CONFIG_MODVERSIONS, which is what GKI ships.
+#
+# Building the kernel itself is never the point. The cheapest path is the DDK
+# (see build-modules.sh); this script is the fallback for when you want the
+# tree yourself, and it only builds the =m parts. `--modules_prepare` alone
+# is not enough: since 6.12 it never runs modpost, so no symvers appears.
 set -euo pipefail
 
 SRC="kernel-src"
@@ -61,15 +65,23 @@ make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" "${CONFIG}"
 make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" modules_prepare
 
 if [ "${QUICK}" -eq 0 ]; then
-	# Produces the vmlinux export list the modules are stamped against.
-	make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" vmlinux
+	# The goal is only to obtain Module.symvers, so build the smallest thing
+	# that produces it: the =m parts of the tree.
+	make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" modules
 fi
 
 # Since 6.12 modpost writes vmlinux.symvers, while external modules look for
-# Module.symvers. Nothing has been built into this tree besides vmlinux, so
-# the two are equivalent here.
-if [ -f "${OUT}/vmlinux.symvers" ] && [ ! -f "${OUT}/Module.symvers" ]; then
+# Module.symvers. Fall back to the vmlinux export list, and only build vmlinux
+# itself when nothing else yielded a symvers.
+if [ ! -f "${OUT}/Module.symvers" ] && [ -f "${OUT}/vmlinux.symvers" ]; then
 	cp "${OUT}/vmlinux.symvers" "${OUT}/Module.symvers"
+fi
+
+if [ ! -f "${OUT}/Module.symvers" ] && [ "${QUICK}" -eq 0 ]; then
+	echo "still no symvers, falling back to a full vmlinux build"
+	make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" vmlinux
+	[ -f "${OUT}/Module.symvers" ] ||
+		cp "${OUT}/vmlinux.symvers" "${OUT}/Module.symvers"
 fi
 
 echo "kernel build tree ready at ${OUT}"

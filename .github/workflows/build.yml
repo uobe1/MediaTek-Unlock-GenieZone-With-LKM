@@ -35,44 +35,29 @@ jobs:
   kernel-modules:
     name: Kernel modules (android${{ inputs.android_version || '16' }}-${{ inputs.kernel_version || '6.12' }})
     runs-on: ubuntu-latest
+    # The DDK image carries the prepared kernel build directory for one KMI,
+    # including Module.symvers. That is all we need from the kernel, so no
+    # kernel source is fetched and nothing of the kernel is compiled.
+    container:
+      image: ghcr.io/ylarod/ddk:android${{ inputs.android_version || '16' }}-${{ inputs.kernel_version || '6.12' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install host toolchain
+      - name: Show the DDK kernel directory
         run: |
-          sudo apt-get update
-          # libdw-dev provides dwarf.h, needed by scripts/gendwarfksyms
-          # (CONFIG_GENDWARFKSYMS), which produces the module symbol CRCs.
-          sudo apt-get install -y --no-install-recommends \
-            clang lld llvm bc bison flex libssl-dev libelf-dev libdw-dev \
-            cpio kmod zip
-
-      - name: Fetch minimal GKI kernel source
-        run: |
-          chmod +x scripts/*.sh
-          ./scripts/fetch-kernel.sh \
-            --android "${ANDROID_VERSION}" \
-            --kernel "${KERNEL_VERSION}" \
-            --dest kernel-src
-
-      - name: Prepare kernel build tree
-        run: |
-          ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+          echo "DDK_ROOT=${DDK_ROOT:-/opt/ddk}"
+          ls "${DDK_ROOT:-/opt/ddk}/kdir"
+          ls "${DDK_ROOT:-/opt/ddk}/kdir/${KMI}" | head
 
       - name: Build gzvm_probe.ko and gzvm_unlock.ko
         run: |
-          cmake -B build \
-            -DMGZ_ANDROID_VERSION="${ANDROID_VERSION}" \
-            -DMGZ_KERNEL_VERSION="${KERNEL_VERSION}" \
-            -DMGZ_ANDROID_ABI=host \
-            -DMGZ_KERNEL_DIR="${PWD}/kbuild"
-          cmake --build build --target gzvm_modules
-          ls -l build/out/*/*.ko
+          chmod +x scripts/*.sh
+          ./scripts/build-modules.sh --kmi "${KMI}" --src kernel --out dist/modules
 
       - uses: actions/upload-artifact@v4
         with:
           name: gzvm-modules-${{ env.KMI }}
-          path: build/out/*/*.ko
+          path: dist/modules/*.ko
           if-no-files-found: error
 
   cli:
