@@ -103,6 +103,7 @@ struct mgz_device {
 	unsigned long hvc_a0;
 	int built_module_matches;
 	char module_path[256];
+	char module_vermagic[128];
 };
 
 int mgz_detect(struct mgz_device *dev, const struct mgz_root *root);

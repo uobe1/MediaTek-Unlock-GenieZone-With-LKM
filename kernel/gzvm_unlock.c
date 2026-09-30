@@ -70,6 +70,24 @@ static bool gzvm_node_exists(const char *path)
 	return true;
 }
 
+/*
+ * device_create() hands the node over to devtmpfs, which creates it from its
+ * own thread, so the node can appear a moment after misc_register() returned.
+ * Give it a short grace period before deciding the probe failed.
+ */
+static bool gzvm_wait_for_node(const char *path)
+{
+	unsigned int i;
+
+	for (i = 0; i < 20; i++) {
+		if (gzvm_node_exists(path))
+			return true;
+		msleep(100);
+	}
+
+	return false;
+}
+
 static void *gzvm_resolve_probe_entry(void)
 {
 	void *addr = NULL;
@@ -130,7 +148,7 @@ static int __init gzvm_unlock_init(void)
 			msleep(200);
 	}
 
-	node_created = gzvm_node_exists(devnode);
+	node_created = gzvm_wait_for_node(devnode);
 	if (!node_created) {
 		pr_err("%s was not created; GenieZone is most likely disabled "
 		       "below Linux (ATF/EL2)\n", devnode);

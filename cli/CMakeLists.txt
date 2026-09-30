@@ -28,7 +28,10 @@ target_compile_options(mgz PRIVATE
 # Prefer a static binary: no shared loader surprises on old devices. Some
 # toolchains (for example a Termux shell without the NDK static crt) cannot
 # link statically, so fall back to dynamic linking when that is the case.
-option(MGZ_STATIC "Link mgz statically" ON)
+# Off by default: an NDK static binary carries a PT_TLS segment aligned to 8,
+# and bionic on Android 15+ refuses to run it ("executable's TLS segment is
+# underaligned"). Dynamic linking against bionic is fine on the device.
+option(MGZ_STATIC "Link mgz statically (not usable on Android 15+)" OFF)
 
 if(MGZ_STATIC)
 	include(CheckCSourceCompiles)

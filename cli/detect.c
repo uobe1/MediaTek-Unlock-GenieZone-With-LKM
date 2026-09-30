@@ -6,6 +6,7 @@
  * HVC probe and the kallsyms resolution need kernel context, and those are
  * delegated to gzvm_probe.ko when it is available.
  */
+#define _GNU_SOURCE
 #include <ctype.h>
 #include <dirent.h>
 #include <stdarg.h>
@@ -57,24 +58,46 @@ static int dir_has_match(const char *dir, const char *needle)
 	return found;
 }
 
+/*
+ * Search a whole file, not line by line: a .ko is binary and the vermagic
+ * string is not separated by newlines.
+ */
 static int file_contains(const char *path, const char *needle)
 {
 	FILE *fp;
-	char line[1024];
+	char *buf;
+	long size;
 	int found = 0;
 
-	fp = fopen(path, "r");
+	fp = fopen(path, "rb");
 	if (!fp)
 		return 0;
 
-	while (fgets(line, sizeof(line), fp)) {
-		if (strstr(line, needle)) {
-			found = 1;
-			break;
-		}
+	if (fseek(fp, 0, SEEK_END) != 0) {
+		fclose(fp);
+		return 0;
 	}
 
+	size = ftell(fp);
+	if (size <= 0) {
+		fclose(fp);
+		return 0;
+	}
+
+	rewind(fp);
+	buf = malloc((size_t)size);
+	if (!buf) {
+		fclose(fp);
+		return 0;
+	}
+
+	if (fread(buf, 1, (size_t)size, fp) == (size_t)size)
+		found = memmem(buf, (size_t)size, needle,
+			       strlen(needle)) != NULL;
+
+	free(buf);
 	fclose(fp);
+
 	return found;
 }
 
@@ -348,9 +371,69 @@ static void detect_el2(struct mgz_device *dev, const struct mgz_root *root)
 	mgz_root_exec(root, cmd, out, sizeof(out));
 }
 
+/*
+ * Read the vermagic string out of a .ko. KMI stability is guaranteed per
+ * kernel major version, and the DDK build directory is built from its own
+ * 6.12.y point release, so the major version is what has to match -- the
+ * full release string is not required to be identical.
+ */
+static int read_vermagic(const char *path, char *out, size_t outsz)
+{
+	FILE *fp;
+	char *buf;
+	char *found;
+	long size;
+	size_t i = 0;
+
+	fp = fopen(path, "rb");
+	if (!fp)
+		return 0;
+
+	if (fseek(fp, 0, SEEK_END) != 0) {
+		fclose(fp);
+		return 0;
+	}
+
+	size = ftell(fp);
+	if (size <= 0) {
+		fclose(fp);
+		return 0;
+	}
+
+	rewind(fp);
+	buf = malloc((size_t)size);
+	if (!buf) {
+		fclose(fp);
+		return 0;
+	}
+
+	if (fread(buf, 1, (size_t)size, fp) != (size_t)size) {
+		free(buf);
+		fclose(fp);
+		return 0;
+	}
+
+	found = memmem(buf, (size_t)size, "vermagic=", strlen("vermagic="));
+	if (found) {
+		found += strlen("vermagic=");
+		for (; i + 1 < outsz && *found && *found != ' ' &&
+		       *found != '\n'; found++)
+			out[i++] = *found;
+		out[i] = '\0';
+	}
+
+	free(buf);
+	fclose(fp);
+
+	return i > 0;
+}
+
 static void detect_built_module(struct mgz_device *dev)
 {
 	char path[512];
+	char vermagic[128];
+	char major[16];
+	char *p;
 
 	if (!mgz_find_module_file(NULL, MGZ_UNLOCK_KO, path, sizeof(path))) {
 		mgz_log(MGZ_LOG_DEBUG, "%s not found", MGZ_UNLOCK_KO);
@@ -359,12 +442,21 @@ static void detect_built_module(struct mgz_device *dev)
 
 	snprintf(dev->module_path, sizeof(dev->module_path), "%s", path);
 
-	/*
-	 * A module only loads on the exact KMI it was built for; the vermagic
-	 * string embedded in the .ko records that.
-	 */
-	dev->built_module_matches =
-		file_contains(path, dev->uname_release);
+	if (!read_vermagic(path, vermagic, sizeof(vermagic)))
+		return;
+
+	snprintf(dev->module_vermagic, sizeof(dev->module_vermagic), "%s",
+		 vermagic);
+
+	snprintf(major, sizeof(major), "%s", vermagic);
+	p = strchr(major, '.');
+	if (p) {
+		p = strchr(p + 1, '.');
+		if (p)
+			*p = '\0';
+	}
+
+	dev->built_module_matches = !strcmp(major, dev->kernel_major);
 }
 
 int mgz_detect(struct mgz_device *dev, const struct mgz_root *root)
@@ -448,8 +540,10 @@ int cmd_check(int argc, char **argv, const struct mgz_root *root)
 	mgz_log(MGZ_LOG_RAW, "\nmodule\n");
 	print_row("unlock module", "%s", dev.module_path[0] ?
 					 dev.module_path : "not found");
+	print_row("vermagic", "%s", dev.module_vermagic[0] ?
+				    dev.module_vermagic : "-");
 	print_row("matches this kmi", "%s",
-		  dev.module_path[0] ?
+		  dev.module_vermagic[0] ?
 		  (dev.built_module_matches ? "yes" : "NO") : "-");
 
 	if (dev.el2_alive == 1 && dev.symbol_present && dev.gzvm_ko_loaded)
