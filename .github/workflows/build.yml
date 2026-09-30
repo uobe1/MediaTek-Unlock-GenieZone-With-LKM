@@ -33,7 +33,7 @@ env:
 
 jobs:
   kernel-modules:
-    name: Kernel modules (${{ env.KMI }})
+    name: Kernel modules (android${{ inputs.android_version || '16' }}-${{ inputs.kernel_version || '6.12' }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
