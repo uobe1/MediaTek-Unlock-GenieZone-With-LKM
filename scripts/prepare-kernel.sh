@@ -61,10 +61,20 @@ make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" "${CONFIG}"
 make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" modules_prepare
 
 if [ "${QUICK}" -eq 0 ]; then
-	# Produces ${OUT}/Module.symvers, which the modules are stamped against.
+	# Produces the vmlinux export list the modules are stamped against.
 	make -C "${SRC}" ARCH="${ARCH}" LLVM=1 O="${OUT}" -j"${JOBS}" vmlinux
 fi
 
+# Since 6.12 modpost writes vmlinux.symvers, while external modules look for
+# Module.symvers. Nothing has been built into this tree besides vmlinux, so
+# the two are equivalent here.
+if [ -f "${OUT}/vmlinux.symvers" ] && [ ! -f "${OUT}/Module.symvers" ]; then
+	cp "${OUT}/vmlinux.symvers" "${OUT}/Module.symvers"
+fi
+
 echo "kernel build tree ready at ${OUT}"
-[ -f "${OUT}/Module.symvers" ] && echo "Module.symvers: present" ||
+if [ -f "${OUT}/Module.symvers" ]; then
+	echo "Module.symvers: present"
+else
 	echo "Module.symvers: MISSING (modules will lack symbol CRCs)"
+fi
