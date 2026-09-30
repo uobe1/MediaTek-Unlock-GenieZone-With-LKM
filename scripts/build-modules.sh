@@ -89,8 +89,9 @@ ensure_kernel_src() {
 		"${SCRIPT_DIR}/fetch-kernel.sh" \
 			--android "${ANDROID_VERSION}" \
 			--kernel "${KERNEL_VERSION}" \
-			--dest "${KERNEL_SRC}"
+			--dest "${KERNEL_SRC}" || return 1
 	fi
+	return 0
 }
 
 # modules_prepare is what generates the config, the generated headers and the
@@ -100,10 +101,12 @@ prepare_tree() {
 
 	if [ -f "${out}/.config" ] && [ -f "${out}/include/generated/autoconf.h" ]; then
 		echo ">> build tree already prepared at ${out}"
-	else
-		"${SCRIPT_DIR}/prepare-kernel.sh" \
-			--src "${KERNEL_SRC}" --out "${out}" ${shift_args}
+		return 0
 	fi
+
+	"${SCRIPT_DIR}/prepare-kernel.sh" \
+		--src "${KERNEL_SRC}" --out "${out}" ${shift_args} || return 1
+	return 0
 }
 
 # Download the symvers of the official GKI build for this KMI.
@@ -163,9 +166,9 @@ strategy_ddk() {
 strategy_release() {
 	local out="${PWD}/.gki-build"
 
-	ensure_kernel_src
-	prepare_tree "${out}" "--quick"
-	fetch_gki_symvers "${out}"
+	ensure_kernel_src || return 1
+	prepare_tree "${out}" "--quick" || return 1
+	fetch_gki_symvers "${out}" || return 1
 	KDIR="${out}"
 }
 
@@ -175,8 +178,12 @@ strategy_modules() {
 	if [ -f "${out}/Module.symvers" ]; then
 		echo ">> Module.symvers already present at ${out}"
 	else
-		ensure_kernel_src
-		prepare_tree "${out}" ""
+		ensure_kernel_src || return 1
+		prepare_tree "${out}" "" || return 1
+		[ -f "${out}/Module.symvers" ] || {
+			echo "   ${out}/Module.symvers did not appear" >&2
+			return 1
+		}
 	fi
 	KDIR="${out}"
 }
@@ -184,14 +191,15 @@ strategy_modules() {
 strategy_vmlinux() {
 	local out="${PWD}/.gki-build"
 
-	ensure_kernel_src
-	prepare_tree "${out}" "--quick"
+	ensure_kernel_src || return 1
+	prepare_tree "${out}" "--quick" || return 1
 	if [ ! -f "${out}/Module.symvers" ]; then
 		echo ">> building vmlinux (last resort)"
 		make -C "${KERNEL_SRC}" ARCH=arm64 LLVM=1 O="${out}" \
-			-j"${JOBS}" vmlinux
+			-j"${JOBS}" vmlinux || return 1
 		[ -f "${out}/vmlinux.symvers" ] &&
 			cp "${out}/vmlinux.symvers" "${out}/Module.symvers"
+		[ -f "${out}/Module.symvers" ] || return 1
 	fi
 	KDIR="${out}"
 }
@@ -232,6 +240,8 @@ else
 			FOUND="${s}"
 			break
 		fi
+		# the failed strategy may have left a half-prepared tree behind
+		rm -rf "${PWD}/.gki-build"
 		echo "   ${s} not available, trying the next one"
 	done
 	[ -n "${FOUND}" ] || {

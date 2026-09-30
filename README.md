@@ -278,6 +278,10 @@ falls through, so the release or modules strategy is what runs. Cross
 compiling the CLI to another ABI additionally needs the NDK, which has no pkg
 package — the script prints what to do when it is missing.
 
+The release and modules strategies reach out to ci.android.com and
+android.googlesource.com; if that network path is unavailable, set
+`https_proxy` so git and curl pick it up.
+
 ---
 
 ## Repository layout

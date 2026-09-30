@@ -238,6 +238,8 @@ pkg install clang cmake make zip   # 或者让脚本自己装：
 
 内核模块仍需要该 KMI 的已准备好的构建目录（`Module.symvers` 与生成的头文件）；手机上没有 DDK，策略会自动落到 release 或 modules。若要把 CLI 交叉编译到其他 ABI，还需要 NDK —— 它没有 pkg 包，脚本会在缺失时打印解决办法。
 
+release 与 modules 策略需要访问 ci.android.com 和 android.googlesource.com；若该网络不可达，请设置 `https_proxy`，git 与 curl 会自动使用。
+
 ---
 
 ## 仓库结构
