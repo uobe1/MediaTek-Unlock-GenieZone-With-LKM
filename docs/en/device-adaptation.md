@@ -129,11 +129,16 @@ cat /proc/sys/kernel/modules_disabled
 Build with the two major versions of your device:
 
 ```bash
+# DDK image of that KMI, nothing of the kernel is compiled
+./scripts/build-modules.sh --kmi android15-6.6 --src kernel --out dist/modules
+
+# or through CMake, against a prepared build directory
 cmake -B build -DMGZ_ANDROID_VERSION=15 -DMGZ_KERNEL_VERSION=6.6
 cmake --build build --target gzvm_modules
 ```
 
-or in CI, dispatch the workflow with `android_version` / `kernel_version`.
+or in CI, dispatch the workflow with `android_version` / `kernel_version`,
+which selects the DDK image `ghcr.io/ylarod/ddk:android15-6.6`.
 Only the **major** kernel version matters: `6.12.x` all map to
 `android16-6.12`. See
 [GKI LKM compatibility](gki-lkm-compatibility.md).

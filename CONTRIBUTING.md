@@ -103,17 +103,32 @@ If this seems like a lot, you can also
 [edit the files directly](https://help.github.com/articles/editing-files-in-another-user-s-repository/)
 without any of this setup. Yes, [even code](#contribute-code).
 
-To build everything locally you need CMake, a C compiler and a prepared GKI
-kernel tree:
+Building a module only needs the prepared kernel build directory of a KMI
+generation, because that is where `Module.symvers` with the export CRCs
+lives. The kernel itself is never compiled. The DDK ships one such directory
+per KMI and is the recommended way:
 
 ```bash
 git clone git@github.com:uobe1/MediaTek-Unlock-GenieZone-With-LKM.git
 cd MediaTek-Unlock-GenieZone-With-LKM
 
-# smallest possible kernel fetch, then prepare the tree (builds vmlinux)
+# inside the DDK container for the KMI, e.g. ghcr.io/ylarod/ddk:android16-6.12
+./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
+```
+
+Without the DDK, the same directory can be produced from a shallow clone of
+`kernel/common`; only the `=m` parts are built, because they are what
+produces the symvers:
+
+```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12
 ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
+```
 
+Both are also reachable through CMake and a prepared tree:
+
+```bash
 cmake -B build -DMGZ_ANDROID_VERSION=16 -DMGZ_KERNEL_VERSION=6.12 \
   -DMGZ_KERNEL_DIR="$PWD/kbuild"
 cmake --build build --target dist

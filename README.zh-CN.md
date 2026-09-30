@@ -192,11 +192,19 @@ cmake --build build --target dist
 | `ksu_module` | 可刷入的 KernelSU zip |
 | `dist` | 以上全部 |
 
-只需拉取 `kernel/common`，辅助脚本会以"仍能产出可加载模块"的最小代价准备内核树 —— vmlinux 构建正是外部模块所依赖的 `Module.symvers` 的来源：
+构建模块只需要该 KMI 代次的**已准备好的内核构建目录** —— 配置、生成的头文件，以及最重要的、承载导出符号 CRC 的 `Module.symvers`。内核本体从来不需要编译。Driver Development Kit（DDK）正是按 KMI 逐个提供这个目录，这是推荐路径：
+
+```bash
+# 在对应 KMI 的 DDK 镜像/容器内
+./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
+```
+
+没有 DDK 时，也可以用 `kernel/common` 的浅克隆自行产出同一目录。此时只构建 `=m` 部分（它们才是 `Module.symvers` 的来源）；构建 vmlinux 排在它们之后作为兜底：
 
 ```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # 浅克隆，单个项目
 ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
 ```
 
 GitHub Actions 工作流做同样的事，并把两个版本作为入参（默认 `16` 与 `6.12`）；产物为 `gzvm-modules-<kmi>`、`mgz-<abi>-<kmi>` 与 `mgz-bundle-<kmi>`。
@@ -219,7 +227,7 @@ cmake -B build \
 kernel/     gzvm_probe.c、gzvm_unlock.c、公共头文件、内核 Makefile
 cli/        mgz：主程序、权限处理、检测、KernelSU 持久化
 module/     KernelSU 模块模板（与 cli/ksu.c 中内容一致）
-scripts/    fetch-kernel.sh、prepare-kernel.sh
+scripts/    build-modules.sh、fetch-kernel.sh、prepare-kernel.sh
 docs/en/    英文文档（默认）
 docs/zh-CN/ 简体中文文档
 ```

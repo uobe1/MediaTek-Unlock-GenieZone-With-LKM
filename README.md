@@ -216,14 +216,25 @@ Targets:
 | `ksu_module` | flashable KernelSU zip |
 | `dist` | all of the above |
 
-Only `kernel/common` has to be fetched, and the helper scripts prepare the
-tree with the minimum work that still yields a loadable module — the vmlinux
-build is what produces the `Module.symvers` external modules are stamped
-against:
+Building a module needs only the **prepared kernel build directory** of the
+KMI generation — the config, the generated headers and above all
+`Module.symvers`, which carries the export CRCs. The kernel itself is never
+compiled. The Driver Development Kit ships exactly that, one directory per
+KMI, and that is the recommended path:
+
+```bash
+# inside the DDK image/container for the wanted KMI
+./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
+```
+
+Without the DDK, the same directory can be produced from a shallow clone of
+`kernel/common`. Only the `=m` parts are built, since they are what produces
+`Module.symvers`; building vmlinux is the last resort behind them:
 
 ```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # shallow, one project
 ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
 ```
 
 The GitHub Actions workflow does the same and takes both versions as inputs
@@ -249,7 +260,7 @@ cmake -B build \
 kernel/     gzvm_probe.c, gzvm_unlock.c, shared header, kernel Makefile
 cli/        mgz: main, root handling, detection, KernelSU persistence
 module/     KernelSU module template (mirrored by cli/ksu.c)
-scripts/    fetch-kernel.sh, prepare-kernel.sh
+scripts/    build-modules.sh, fetch-kernel.sh, prepare-kernel.sh
 docs/en/    documentation, English (default)
 docs/zh-CN/ documentation, Simplified Chinese
 ```

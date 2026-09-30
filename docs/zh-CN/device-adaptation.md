@@ -120,11 +120,15 @@ cat /proc/sys/kernel/modules_disabled
 按设备的两个大版本构建：
 
 ```bash
+# 使用该 KMI 的 DDK 镜像，内核本体不参与编译
+./scripts/build-modules.sh --kmi android15-6.6 --src kernel --out dist/modules
+
+# 或通过 CMake 配合已准备好的构建目录
 cmake -B build -DMGZ_ANDROID_VERSION=15 -DMGZ_KERNEL_VERSION=6.6
 cmake --build build --target gzvm_modules
 ```
 
-在 CI 中则以 `android_version` / `kernel_version` 入参触发工作流。只有内核**大版本**有意义：`6.12.x` 全部归入 `android16-6.12`。参见[GKI LKM 兼容性](gki-lkm-compatibility.md)。
+在 CI 中则以 `android_version` / `kernel_version` 入参触发工作流，它会选用 DDK 镜像 `ghcr.io/ylarod/ddk:android15-6.6`。只有内核**大版本**有意义：`6.12.x` 全部归入 `android16-6.12`。参见[GKI LKM 兼容性](gki-lkm-compatibility.md)。
 
 ### 6.2 不同的符号名
 

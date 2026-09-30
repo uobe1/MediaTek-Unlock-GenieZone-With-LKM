@@ -80,16 +80,27 @@ SELinux 状态（getenforce）：
 
 如果这些看起来太多，也可以[直接编辑文件](https://help.github.com/articles/editing-files-in-another-user-s-repository/)而无需任何本地搭建。是的，[代码也一样](#contribute-code)。
 
-要在本地构建全部内容，你需要 CMake、C 编译器以及一份准备好的 GKI 内核树：
+构建模块只需要某个 KMI 代次的已准备好的内核构建目录，因为承载导出符号 CRC 的 `Module.symvers` 就在其中；内核本体从来不需要编译。DDK 按 KMI 逐个提供该目录，是推荐做法：
 
 ```bash
 git clone git@github.com:uobe1/MediaTek-Unlock-GenieZone-With-LKM.git
 cd MediaTek-Unlock-GenieZone-With-LKM
 
-# 最小化内核拉取，然后准备内核树（会构建 vmlinux）
+# 在对应 KMI 的 DDK 容器内，例如 ghcr.io/ylarod/ddk:android16-6.12
+./scripts/build-modules.sh --kmi android16-6.12 --src kernel --out dist/modules
+```
+
+没有 DDK 时，可以用 `kernel/common` 的浅克隆自行产出同一目录；此时只构建 `=m` 部分，因为它们才是符号表的来源：
+
+```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12
 ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
+./scripts/build-modules.sh --kdir "$PWD/kbuild" --src kernel --out dist/modules
+```
 
+两者也可以通过 CMake 配合已准备好的构建目录完成：
+
+```bash
 cmake -B build -DMGZ_ANDROID_VERSION=16 -DMGZ_KERNEL_VERSION=6.12 \
   -DMGZ_KERNEL_DIR="$PWD/kbuild"
 cmake --build build --target dist
