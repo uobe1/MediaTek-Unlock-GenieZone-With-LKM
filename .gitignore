@@ -70,3 +70,6 @@ tmp/
 
 # ---- downloaded CI artifacts --------------------------------------------
 dist/
+
+# ---- local build scratch -------------------------------------------------
+build-local/

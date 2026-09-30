@@ -120,6 +120,7 @@ mgz <命令> [选项] [模块路径]
 | `install` | 确保 `gzvm.ko` 已加载，然后单次加载 `gzvm_unlock.ko` 并校验 `/dev/gzvm` |
 | `remove` | 卸载 `gzvm_unlock.ko` 并移除已持久化的 KernelSU 模块 |
 | `ksu-keep-alive` | 安装 KernelSU 模块，使每次开机自动重新加载 `.ko` |
+| `verity` | 对 `/dev/gzvm` 发起 ioctl（`GZVM_CHECK_EXTENSION`，随后 `GZVM_CREATE_VM`），证明驱动真正可用，而不仅节点存在 |
 | `help` | 显示用法 |
 
 ### 选项
@@ -228,16 +229,14 @@ cmake -B build \
 
 ### 在设备本机构建
 
-CLI 完全可以在已 Root 的手机上构建并使用：Termux 自带 clang，本机构建产物立即可用 —— 不需要 NDK，也不需要内核树：
+CLI 完全可以在已 Root 的手机上构建并使用。`local-build.sh` 会自动检测 Android 与内核大版本、检查工具链，本机构建 CLI 并按策略链构建模块 —— 全程无交互式提示，没有 tty 也能跑：
 
 ```bash
-pkg install clang cmake make
-cmake -B build -DMGZ_ANDROID_ABI=host
-cmake --build build --target mgz
-build/out/host-*/mgz check
+pkg install clang cmake make zip   # 或者让脚本自己装：
+./scripts/local-build.sh --auto-pkg
 ```
 
-内核模块则不同：它需要该 KMI 的已准备好的构建目录（`Module.symvers` 与生成的头文件），由 DDK 或 release 策略提供，手机本体上没有可编译的东西。
+内核模块仍需要该 KMI 的已准备好的构建目录（`Module.symvers` 与生成的头文件）；手机上没有 DDK，策略会自动落到 release 或 modules。若要把 CLI 交叉编译到其他 ABI，还需要 NDK —— 它没有 pkg 包，脚本会在缺失时打印解决办法。
 
 ---
 

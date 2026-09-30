@@ -131,6 +131,7 @@ mgz <command> [options] [module-path]
 | `install` | Ensure `gzvm.ko` is loaded, then load `gzvm_unlock.ko` once and verify `/dev/gzvm` |
 | `remove` | Unload `gzvm_unlock.ko` and drop the persisted KernelSU module |
 | `ksu-keep-alive` | Install a KernelSU module that reloads the `.ko` on every boot |
+| `verity` | ioctl `/dev/gzvm` (`GZVM_CHECK_EXTENSION`, then `GZVM_CREATE_VM`) to prove the driver actually answers, not just that the node exists |
 | `help` | Show usage |
 
 ### Options
@@ -261,20 +262,21 @@ cmake -B build \
 
 ### Building on the device
 
-The CLI can be built and used entirely on a rooted phone: Termux ships clang,
-and the native build produces a binary that runs right away — no NDK, no
-kernel tree:
+The CLI can be built and used entirely on a rooted phone. `local-build.sh`
+detects the Android and kernel major versions, checks the toolchain, builds
+the CLI natively and the modules through the strategy chain — with no
+interactive prompt anywhere, so it also works without a tty:
 
 ```bash
-pkg install clang cmake make
-cmake -B build -DMGZ_ANDROID_ABI=host
-cmake --build build --target mgz
-build/out/host-*/mgz check
+pkg install clang cmake make zip   # or let the script do it:
+./scripts/local-build.sh --auto-pkg
 ```
 
-The kernel modules are different: they need the prepared build directory of
-the KMI (`Module.symvers` and the generated headers), which the DDK or the
-release strategy provides. There is nothing to compile on the phone itself.
+The kernel modules still need the prepared build directory of the KMI
+(`Module.symvers` and the generated headers); on a phone the DDK strategy
+falls through, so the release or modules strategy is what runs. Cross
+compiling the CLI to another ABI additionally needs the NDK, which has no pkg
+package — the script prints what to do when it is missing.
 
 ---
 

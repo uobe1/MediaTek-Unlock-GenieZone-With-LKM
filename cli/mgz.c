@@ -107,6 +107,7 @@ static const char *const usage_text =
 	"  install            Load gzvm_unlock.ko once and create /dev/gzvm\n"
 	"  remove             Unload gzvm_unlock.ko and drop the persisted module\n"
 	"  ksu-keep-alive     Install a KernelSU module that reloads the .ko on boot\n"
+	"  verity             ioctl /dev/gzvm to prove the driver actually works\n"
 	"  help               Show this help\n"
 	"\n"
 	"Options:\n"
@@ -204,6 +205,8 @@ int main(int argc, char **argv)
 		rc = cmd_remove(npos - 1, positional + 1, &root);
 	else if (!strcmp(positional[0], "ksu-keep-alive"))
 		rc = cmd_ksu_keep_alive(npos - 1, positional + 1, &root);
+	else if (!strcmp(positional[0], "verity"))
+		rc = cmd_verity(npos - 1, positional + 1, &root);
 	else {
 		mgz_log(MGZ_LOG_ERR, "unknown command '%s'", positional[0]);
 		mgz_usage(program);

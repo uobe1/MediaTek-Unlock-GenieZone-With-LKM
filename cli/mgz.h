@@ -113,5 +113,6 @@ int cmd_check(int argc, char **argv, const struct mgz_root *root);
 int cmd_install(int argc, char **argv, const struct mgz_root *root);
 int cmd_remove(int argc, char **argv, const struct mgz_root *root);
 int cmd_ksu_keep_alive(int argc, char **argv, const struct mgz_root *root);
+int cmd_verity(int argc, char **argv, const struct mgz_root *root);
 
 #endif /* MGZ_H */

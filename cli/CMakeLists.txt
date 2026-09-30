@@ -12,6 +12,7 @@ set(MGZ_SOURCES
 	root.c
 	detect.c
 	ksu.c
+	verity.c
 )
 
 add_executable(mgz ${MGZ_SOURCES})
