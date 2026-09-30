@@ -45,7 +45,10 @@ while [ $# -gt 0 ]; do
 done
 
 KMI="android${ANDROID_VERSION}-${KERNEL_VERSION}"
-BRANCH="common-${KMI}"
+# The kernel manifest uses common-<kmi>, the kernel/common project itself
+# carries <kmi>; try both so the script keeps working either way.
+BRANCH="${KMI}"
+BRANCH_ALT="common-${KMI}"
 
 echo "KMI    : ${KMI}"
 echo "branch : ${BRANCH}"
@@ -60,15 +63,21 @@ fi
 if [ "${METHOD}" = "repo" ]; then
 	# Full manifest, but shallow and current branch only.
 	repo init -u https://android.googlesource.com/kernel/manifest \
-		-b "${BRANCH}" --depth=1
+		-b "${BRANCH_ALT}" --depth=1
 	repo sync -c -j"${JOBS}" --no-tags --no-clone-bundle -q
 	exit 0
 fi
 
 # Single project, single branch, single commit: the fastest thing that can
 # still produce a working external module build.
-git clone --depth=1 --single-branch --no-tags \
+if ! git clone --depth=1 --single-branch --no-tags \
 	-b "${BRANCH}" \
-	https://android.googlesource.com/kernel/common "${DEST}"
+	https://android.googlesource.com/kernel/common "${DEST}" 2>/dev/null; then
+	echo "branch ${BRANCH} not found, trying ${BRANCH_ALT}"
+	rm -rf "${DEST}"
+	git clone --depth=1 --single-branch --no-tags \
+		-b "${BRANCH_ALT}" \
+		https://android.googlesource.com/kernel/common "${DEST}"
+fi
 
 echo "done: $(du -sh "${DEST}" 2>/dev/null | cut -f1) in ${DEST}"

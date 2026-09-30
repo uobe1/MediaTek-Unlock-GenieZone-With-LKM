@@ -17,6 +17,20 @@
 
 cmake_minimum_required(VERSION 3.20)
 
+# The NDK compiler has to be selected before project() runs, otherwise CMake
+# picks the host gcc, which does not understand --target=<triple>.
+set(MGZ_ANDROID_NDK "" CACHE PATH "Android NDK root (optional)")
+
+if(MGZ_ANDROID_NDK AND NOT CMAKE_C_COMPILER)
+	file(GLOB MGZ_NDK_CLANG
+		"${MGZ_ANDROID_NDK}/toolchains/llvm/prebuilt/*/bin/clang")
+	list(GET MGZ_NDK_CLANG 0 MGZ_NDK_CLANG)
+	if(MGZ_NDK_CLANG)
+		set(CMAKE_C_COMPILER "${MGZ_NDK_CLANG}")
+		message(STATUS "NDK compiler   : ${MGZ_NDK_CLANG}")
+	endif()
+endif()
+
 project(MediaTekUnlockGenieZoneWithLKM
 	VERSION 0.1.0
 	DESCRIPTION "Unlock MediaTek GenieZone (gzvm) with a loadable kernel module"
@@ -61,7 +75,6 @@ endif()
 # With an NDK the sysroot is derived automatically; when cross compiling
 # without one, point MGZ_SYSROOT at the sysroot yourself.
 
-set(MGZ_ANDROID_NDK "" CACHE PATH "Android NDK root (optional)")
 set(MGZ_SYSROOT "" CACHE PATH "Sysroot to compile against (optional)")
 
 if(MGZ_ANDROID_NDK AND NOT MGZ_SYSROOT)
