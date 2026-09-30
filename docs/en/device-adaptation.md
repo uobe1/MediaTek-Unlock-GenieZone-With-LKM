@@ -161,9 +161,10 @@ The probe uses MediaTek's vendor-hyp SMCCC range:
 #define MT_HVC_GZVM_PROBE GZVM_HCALL_ID(0)
 ```
 
-If your platform uses a different function number, build with
-`-DGZVM_HVC_PROBE_FN=<n>` (or edit the define) and compare against the value
-your `gzvm.ko` uses.
+If your platform uses a different function number, pass it as a module
+parameter — `insmod gzvm_probe.ko hvc_fn=<n>` — and compare against the value
+your `gzvm.ko` uses. `GZVM_HVC_PROBE_FN_DEFAULT` in
+`kernel/gzvm_common.h` holds the compiled-in default.
 
 ### 6.4 Different device node
 

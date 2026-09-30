@@ -147,7 +147,7 @@ cat /proc/kallsyms | grep -iE 'gzvm|geniezone'
 #define MT_HVC_GZVM_PROBE GZVM_HCALL_ID(0)
 ```
 
-若你的平台使用其他功能号，可用 `-DGZVM_HVC_PROBE_FN=<n>` 构建（或直接修改该宏），并与 `gzvm.ko` 中使用的值比对。
+若你的平台使用其他功能号，可作为模块参数传入 —— `insmod gzvm_probe.ko hvc_fn=<n>` —— 并与 `gzvm.ko` 中使用的值比对。编译进模块的默认值由 `kernel/gzvm_common.h` 中的 `GZVM_HVC_PROBE_FN_DEFAULT` 决定。
 
 ### 6.4 不同的设备节点
 
