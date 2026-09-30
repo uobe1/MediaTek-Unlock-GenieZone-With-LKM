@@ -86,7 +86,7 @@ SELinux 状态（getenforce）：
 git clone git@github.com:uobe1/MediaTek-Unlock-GenieZone-With-LKM.git
 cd MediaTek-Unlock-GenieZone-With-LKM
 
-# 最小化内核拉取，然后 modules_prepare
+# 最小化内核拉取，然后准备内核树（会构建 vmlinux）
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12
 ./scripts/prepare-kernel.sh --src kernel-src --out kbuild
 

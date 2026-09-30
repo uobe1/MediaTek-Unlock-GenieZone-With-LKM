@@ -216,8 +216,10 @@ Targets:
 | `ksu_module` | flashable KernelSU zip |
 | `dist` | all of the above |
 
-The kernel tree only needs `modules_prepare`, and only `kernel/common` has to
-be fetched — the helper scripts do the minimum:
+Only `kernel/common` has to be fetched, and the helper scripts prepare the
+tree with the minimum work that still yields a loadable module — the vmlinux
+build is what produces the `Module.symvers` external modules are stamped
+against:
 
 ```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # shallow, one project

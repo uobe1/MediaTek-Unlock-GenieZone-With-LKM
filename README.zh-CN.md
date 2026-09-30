@@ -192,7 +192,7 @@ cmake --build build --target dist
 | `ksu_module` | 可刷入的 KernelSU zip |
 | `dist` | 以上全部 |
 
-内核树只需 `modules_prepare`，且只需拉取 `kernel/common` —— 辅助脚本已按最小化实现：
+只需拉取 `kernel/common`，辅助脚本会以"仍能产出可加载模块"的最小代价准备内核树 —— vmlinux 构建正是外部模块所依赖的 `Module.symvers` 的来源：
 
 ```bash
 ./scripts/fetch-kernel.sh --android 16 --kernel 6.12   # 浅克隆，单个项目
