@@ -131,7 +131,13 @@ static void __exit gzvm_probe_exit(void)
 module_init(gzvm_probe_init);
 module_exit(gzvm_probe_exit);
 
-MODULE_LICENSE("GPL v3");
+/*
+ * "GPL" is the legacy tag modpost accepts as GPL compatible; the less common
+ * spellings such as "GPL v3" are treated as proprietary and would make every
+ * GPL-only symbol (register_kprobe among them) unavailable. The sources are
+ * GPLv3-or-later, see the SPDX header and the repository LICENSE.
+ */
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("MediaTek-Unlock-GenieZone-With-LKM contributors");
 MODULE_DESCRIPTION("Detect whether MediaTek GenieZone is alive at EL2");
 MODULE_VERSION("0.1.0");
