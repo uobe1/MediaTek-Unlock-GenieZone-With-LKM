@@ -122,7 +122,8 @@ jobs:
           OUTDIR="build/out/${ABI}-${KMI}"
           mkdir -p "$OUTDIR"
           cp artifacts/ko/*.ko "$OUTDIR"/
-          cp artifacts/mgz/mgz "$OUTDIR"/
+          # The artifact keeps the build/out/<abi>-<kmi>/ layout, so find it.
+          find artifacts/mgz -type f -name mgz -exec cp {} "$OUTDIR"/ \;
           cmake -B build \
             -DMGZ_ANDROID_VERSION="${ANDROID_VERSION}" \
             -DMGZ_KERNEL_VERSION="${KERNEL_VERSION}" \
