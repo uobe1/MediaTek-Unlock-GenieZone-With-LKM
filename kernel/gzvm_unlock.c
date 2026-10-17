@@ -180,4 +180,4 @@ module_exit(gzvm_unlock_exit);
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("MediaTek-Unlock-GenieZone-With-LKM contributors");
 MODULE_DESCRIPTION("Force the MediaTek GenieZone gzvm driver to probe");
-MODULE_VERSION("0.1.0");
+MODULE_VERSION("0.1.1");

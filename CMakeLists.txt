@@ -32,7 +32,7 @@ if(MGZ_ANDROID_NDK AND NOT CMAKE_C_COMPILER)
 endif()
 
 project(MediaTekUnlockGenieZoneWithLKM
-	VERSION 0.1.0
+	VERSION 0.1.1
 	DESCRIPTION "Unlock MediaTek GenieZone (gzvm) with a loadable kernel module"
 	LANGUAGES C
 )
