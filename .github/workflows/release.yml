@@ -2,12 +2,14 @@
 #
 # Prebuilt release bundles for every GKI KMI generation.
 #
-# Triggered by pushing a version tag (0.1.1 or v0.1.1). The mgz CLI is built
-# once — it does not depend on the kernel version — while the kernel modules
-# are built per KMI inside the matching DDK container. Every KMI then gets
-# its own KernelSU module zip, and all of them land in one GitHub release.
+# Triggered by pushing a version tag (0.1.1 or v0.1.1) — and only by that.
+# The mgz CLI is built once — it does not depend on the kernel version —
+# while the kernel modules are built per KMI inside the matching DDK
+# container. Every KMI then gets its own KernelSU module zip, and all of
+# them land in one GitHub release.
 #
-# Manual dispatch builds everything but does not publish a release.
+# Manual dispatch exists for re-running the matrix build by hand; it builds
+# everything but does not publish a release.
 
 name: Release
 
@@ -154,7 +156,5 @@ jobs:
           gh release create "${TAG}" \
             --title "mgz ${TAG}" \
             --generate-notes \
-            --notes "Prebuilt KernelSU module bundles, one per GKI KMI generation: android12-5.10, android13-5.10, android13-5.15, android14-5.15, android14-6.1, android15-6.6, android16-6.12, android17-6.18.
-
-Install the zip matching your device KMI (check \`uname -r\` for the kernel major version) through the KernelSU manager. Each bundle ships the gzvm modules, the mgz CLI, a webui panel and a volume-key action menu." \
+            --notes "One prebuilt KernelSU module bundle per GKI KMI generation: android12-5.10, android13-5.10, android13-5.15, android14-5.15, android14-6.1, android15-6.6, android16-6.12, android17-6.18. Install the zip matching your device KMI (see uname -r); each bundle ships the gzvm modules, the mgz CLI, a webui panel and a volume-key action menu." \
             zips/*.zip

@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Single-KMI build, manual only. The prebuilt bundles for every KMI come
+# from release.yml, which runs automatically when a version tag is pushed.
 name: Build
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
     inputs:
       android_version:
