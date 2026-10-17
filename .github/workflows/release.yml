@@ -153,9 +153,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          ls -l zips
+          # Each artifact keeps a build/out/<abi>-<kmi>/ prefix, so the zips
+          # sit one level down; collect them wherever they are.
+          ZIPS=$(find zips -type f -name '*.zip')
+          ls -l $ZIPS
           gh release create "${TAG}" \
             --title "mgz ${TAG}" \
             --generate-notes \
             --notes "One prebuilt KernelSU module bundle per GKI KMI generation: android12-5.10, android13-5.10, android13-5.15, android14-5.15, android14-6.1, android15-6.6, android16-6.12, android17-6.18. Install the zip matching your device KMI (see uname -r); each bundle ships the gzvm modules, the mgz CLI, a webui panel and a volume-key action menu." \
-            zips/*.zip
+            $ZIPS
