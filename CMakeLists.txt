@@ -161,8 +161,13 @@ add_custom_target(ksu_module
 	${MGZ_MODULE_EXTRA}
 	COMMAND ${CMAKE_COMMAND} -E rm -f "${MGZ_MODULE_ZIP}"
 	# The KernelSU installer expects the module files at the root of the
-	# archive, so the paths are dropped on purpose.
-	COMMAND zip -rj "${MGZ_MODULE_ZIP}" "${MGZ_MODULE_STAGE}"
+	# archive, so everything is packed from inside the stage dir. webroot/
+	# keeps its layout in a second pass: the webui resolver depends on the
+	# directory name.
+	COMMAND ${CMAKE_COMMAND} -E chdir "${MGZ_MODULE_STAGE}"
+		zip -r "${MGZ_MODULE_ZIP}" . -x "webroot/*"
+	COMMAND ${CMAKE_COMMAND} -E chdir "${MGZ_MODULE_STAGE}"
+		zip -r "${MGZ_MODULE_ZIP}" webroot
 	COMMENT "Packaging the KernelSU module: ${MGZ_MODULE_ZIP}"
 	VERBATIM
 )

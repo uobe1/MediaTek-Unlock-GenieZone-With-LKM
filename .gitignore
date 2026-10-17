@@ -73,3 +73,9 @@ dist/
 
 # ---- local build scratch -------------------------------------------------
 build-local/
+AGENTS.md
+
+# ---- local reference screenshots (never commit) --------------------------
+/example.jpg
+/example2.jpg
+/now.jpg

@@ -7,12 +7,17 @@
  *
  *   /data/adb/modules/<id>/{module.prop,service.sh,late-load.sh,...}
  *
+ * The module scripts are embedded verbatim from module/ at build time
+ * (generated headers under cli/build/embedded/), so what ksu-keep-alive
+ * writes and what the ksu_module zip packages can never drift apart.
+ *
  * Two boot stages are covered so both root flavours keep working:
  *   - service.sh    late_start service stage, standard boot (recommended)
  *   - late-load.sh  late-load mode, replaces post-fs-data.sh
  *
  * The module is loaded with a plain insmod first; ksud insmod is only the
- * fallback for environments where that is blocked.
+ * fallback for environments where that is blocked. ksud loads through the
+ * kernel itself, so it needs no SELinux handling.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,114 +26,30 @@
 #include <unistd.h>
 
 #include "mgz.h"
+#include "load_sh.h"
+#include "status_sh.h"
+#include "service_sh.h"
+#include "late_load_sh.h"
+#include "boot_completed_sh.h"
+#include "action_sh.h"
+#include "uninstall_sh.h"
 
 #define MGZ_STAGE_DIR "/data/local/tmp/.mgz_stage"
-#define MGZ_KEEP_ALIVE_LOG "/data/local/tmp/mgz_unlock.log"
-
-static const char *const load_sh =
-	"#!/system/bin/sh\n"
-	"# Shared loader used by service.sh, late-load.sh, boot-completed.sh\n"
-	"# and action.sh.  Keeps one implementation for every boot stage.\n"
-	"MODDIR=${0%/*}\n"
-	"KO=\"$MODDIR/gzvm_unlock.ko\"\n"
-	"LOG=" MGZ_KEEP_ALIVE_LOG "\n"
-	"\n"
-	"log() { echo \"[mgz] $1\" >> \"$LOG\" 2>&1; }\n"
-	"\n"
-	"wait_for_gzvm() {\n"
-	"  i=0\n"
-	"  while [ $i -lt 30 ]; do\n"
-	"    if grep -q '^gzvm ' /proc/modules; then return 0; fi\n"
-	"    i=$((i + 1))\n"
-	"    sleep 1\n"
-	"  done\n"
-	"  return 1\n"
-	"}\n"
-	"\n"
-	"load_gzvm_if_needed() {\n"
-	"  grep -q '^gzvm ' /proc/modules && return 0\n"
-	"  for ko in /system_dlkm/lib/modules/gzvm.ko \\\n"
-	"            /vendor_dlkm/lib/modules/gzvm.ko \\\n"
-	"            /vendor/lib/modules/gzvm.ko \\\n"
-	"            /odm/lib/modules/gzvm.ko; do\n"
-	"    if [ -f \"$ko\" ]; then\n"
-	"      insmod \"$ko\" && return 0\n"
-	"    fi\n"
-	"  done\n"
-	"  return 1\n"
-	"}\n"
-	"\n"
-	"mgz_load() {\n"
-	"  if [ -e /dev/gzvm ]; then\n"
-	"    log 'already active, /dev/gzvm exists'\n"
-	"    return 0\n"
-	"  fi\n"
-	"\n"
-	"  load_gzvm_if_needed || { log 'gzvm.ko is not available'; return 1; }\n"
-	"  wait_for_gzvm || { log 'gzvm.ko did not show up'; return 1; }\n"
-	"\n"
-	"  # Plain insmod already works with MODVERSIONS (the release part of the\n"
-	"  # vermagic is ignored); ksud insmod is the fallback when it is blocked.\n"
-	"  insmod \"$KO\"\n"
-	"  rc=$?\n"
-	"  if [ $rc -ne 0 ] && [ -x /data/adb/ksu/bin/ksud ]; then\n"
-	"    /data/adb/ksu/bin/ksud insmod \"$KO\"\n"
-	"    rc=$?\n"
-	"  fi\n"
-	"\n"
-	"  if [ -e /dev/gzvm ]; then\n"
-	"    log 'activated, /dev/gzvm is present'\n"
-	"    return 0\n"
-	"  fi\n"
-	"\n"
-	"  log \"activation failed (insmod rc=$rc)\"\n"
-	"  return 1\n"
-	"}\n";
-
-static const char *const service_sh =
-	"#!/system/bin/sh\n"
-	"# late_start service stage: non-blocking, recommended by KernelSU.\n"
-	"MODDIR=${0%/*}\n"
-	". \"$MODDIR/load.sh\"\n"
-	"mgz_load\n";
-
-static const char *const late_load_sh =
-	"#!/system/bin/sh\n"
-	"# late-load mode: runs instead of post-fs-data.sh, before OverlayFS\n"
-	"# mounting, for root solutions that load kernelsu.ko after boot.\n"
-	"MODDIR=${0%/*}\n"
-	". \"$MODDIR/load.sh\"\n"
-	"mgz_load\n";
-
-static const char *const boot_completed_sh =
-	"#!/system/bin/sh\n"
-	"# Last chance: verify after boot completed and retry once.\n"
-	"MODDIR=${0%/*}\n"
-	". \"$MODDIR/load.sh\"\n"
-	"mgz_load\n";
-
-static const char *const action_sh =
-	"#!/system/bin/sh\n"
-	"# Manual trigger from the KernelSU manager Action button.\n"
-	"MODDIR=${0%/*}\n"
-	". \"$MODDIR/load.sh\"\n"
-	"if mgz_load; then\n"
-	"  echo 'GenieZone is active (/dev/gzvm)'\n"
-	"else\n"
-	"  echo 'Activation failed, see " MGZ_KEEP_ALIVE_LOG "'\n"
-	"fi\n";
-
-static const char *const uninstall_sh =
-	"#!/system/bin/sh\n"
-	"# The device node belongs to gzvm.ko and stays behind; we only drop\n"
-	"# our own module.\n"
-	"rmmod gzvm_unlock 2>/dev/null\n"
-	"rm -f " MGZ_KEEP_ALIVE_LOG "\n";
 
 static int module_dir(char *out, size_t outsz)
 {
 	snprintf(out, outsz, "%s/%s", MGZ_KSU_MODULES_DIR, MGZ_MODULE_ID);
 	return 0;
+}
+
+/* "0.1.0" -> 1*100 + 0, so the KernelSU manager sees real version order. */
+static int version_code(void)
+{
+	int major = 0, minor = 0, patch = 0;
+
+	sscanf(MGZ_VERSION, "%d.%d.%d", &major, &minor, &patch);
+
+	return major * 10000 + minor * 100 + patch;
 }
 
 static int stage_module(const char *ko_path)
@@ -148,14 +69,15 @@ static int stage_module(const char *ko_path)
 		 "id=%s\n"
 		 "name=%s\n"
 		 "version=v%s\n"
-		 "versionCode=1\n"
+		 "versionCode=%d\n"
 		 "author=MediaTek-Unlock-GenieZone-With-LKM contributors\n"
 		 "description=Load gzvm_unlock.ko on boot to expose /dev/gzvm "
 		 "when the device tree hides GenieZone.\n",
-		 MGZ_MODULE_ID, MGZ_MODULE_NAME, MGZ_VERSION);
+		 MGZ_MODULE_ID, MGZ_MODULE_NAME, MGZ_VERSION, version_code());
 
 	if (mgz_write_file(MGZ_STAGE_DIR "/module.prop", prop, 0644) != 0 ||
 	    mgz_write_file(MGZ_STAGE_DIR "/load.sh", load_sh, 0755) != 0 ||
+	    mgz_write_file(MGZ_STAGE_DIR "/status.sh", status_sh, 0755) != 0 ||
 	    mgz_write_file(MGZ_STAGE_DIR "/service.sh", service_sh, 0755) != 0 ||
 	    mgz_write_file(MGZ_STAGE_DIR "/late-load.sh", late_load_sh,
 			   0755) != 0 ||
@@ -290,7 +212,7 @@ int cmd_install(int argc, char **argv, const struct mgz_root *root)
 		}
 	}
 
-	/* ksud insmod is the last resort, it is KernelSU specific. */
+	/* ksud insmod is the last resort; it needs no SELinux handling. */
 	if (rc != 0 && root->ksud) {
 		mgz_log(MGZ_LOG_WARN, "falling back to ksud insmod");
 		rc = mgz_root_exec_ksud(root, cmd, out, sizeof(out));

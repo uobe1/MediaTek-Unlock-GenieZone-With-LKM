@@ -5,7 +5,7 @@
 #ifndef MGZ_H
 #define MGZ_H
 
-#define MGZ_VERSION		"0.1.0"
+#define MGZ_VERSION		"0.1.1"
 
 #define MGZ_MODULE_ID		"mgz_unlock"
 #define MGZ_MODULE_NAME		"MediaTek GenieZone Unlock"

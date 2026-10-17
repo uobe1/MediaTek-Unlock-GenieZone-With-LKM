@@ -15,9 +15,52 @@ set(MGZ_SOURCES
 	verity.c
 )
 
-add_executable(mgz ${MGZ_SOURCES})
+# ---- embedded module scripts ---------------------------------------------
+#
+# ksu.c writes the KernelSU module scripts out verbatim when persisting the
+# module. The scripts under module/ are the single source of truth; this
+# turns each of them into a header with one C string so the two can never
+# drift apart.
 
-target_include_directories(mgz PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+set(MGZ_EMBED_DIR "${CMAKE_CURRENT_BINARY_DIR}/embedded")
+file(MAKE_DIRECTORY "${MGZ_EMBED_DIR}")
+
+foreach(mgz_script IN ITEMS
+		"load.sh:load_sh"
+		"status.sh:status_sh"
+		"service.sh:service_sh"
+		"late-load.sh:late_load_sh"
+		"boot-completed.sh:boot_completed_sh"
+		"action.sh:action_sh"
+		"uninstall.sh:uninstall_sh")
+	string(REPLACE ":" ";" mgz_script_pair "${mgz_script}")
+	list(GET mgz_script_pair 0 mgz_script_file)
+	list(GET mgz_script_pair 1 mgz_script_var)
+	string(REPLACE ".sh" "" mgz_stem "${mgz_script_file}")
+	string(REPLACE "-" "_" mgz_stem "${mgz_stem}")
+	set(mgz_header "${MGZ_EMBED_DIR}/${mgz_stem}_sh.h")
+	add_custom_command(
+		OUTPUT "${mgz_header}"
+		COMMAND ${CMAKE_COMMAND}
+			-DMGZ_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/../module/${mgz_script_file}
+			-DMGZ_OUTPUT=${mgz_header}
+			-DMGZ_VAR=${mgz_script_var}
+			-P ${CMAKE_CURRENT_SOURCE_DIR}/../cmake/embed_file.cmake
+		DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../module/${mgz_script_file}
+		COMMENT "Embedding module/${mgz_script_file}"
+		VERBATIM
+	)
+	list(APPEND MGZ_EMBED_HEADERS "${mgz_header}")
+endforeach()
+
+# Listing the generated headers as sources makes CMake run the custom
+# commands before compiling ksu.c.
+add_executable(mgz ${MGZ_SOURCES} ${MGZ_EMBED_HEADERS})
+
+target_include_directories(mgz PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
+	${MGZ_EMBED_DIR}
+)
 
 target_compile_options(mgz PRIVATE
 	-Wall

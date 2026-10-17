@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MGZ Unlock</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #11151c; color: #e2e6ee;
+         margin: 0; padding: 14px; max-width: 720px; margin-inline: auto; }
+  .card { background: #1a2029; border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  h1 { font-size: 1.05rem; margin: 0 0 12px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+         border-bottom: 1px solid #232b37; font-size: .92rem; }
+  .row:last-child { border-bottom: 0; }
+  .row span:first-child { color: #9aa4b2; }
+  .ok { color: #7dd97d; } .bad { color: #ff7b72; } .unk { color: #9aa4b2; }
+  .btns { display: flex; gap: 10px; margin-bottom: 12px; }
+  button { flex: 1; padding: 13px 8px; border: 0; border-radius: 10px;
+           background: #2b3546; color: #e2e6ee; font-size: .95rem; }
+  button:active { background: #37435a; }
+  button.primary { background: #5b6ee1; }
+  button:disabled { opacity: .5; }
+  pre { background: #0d1117; border-radius: 10px; padding: 12px; margin: 0;
+        font-size: .78rem; white-space: pre-wrap; word-break: break-all;
+        max-height: 280px; overflow-y: auto; }
+  .hint { color: #9aa4b2; font-size: .8rem; margin-top: 8px; min-height: 1em; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>MediaTek GenieZone Unlock</h1>
+  <div class="row"><span>/dev/gzvm</span><span id="st-node" class="unk">checking…</span></div>
+  <div class="row"><span>gzvm.ko</span><span id="st-gzvm" class="unk">checking…</span></div>
+  <div class="row"><span>gzvm_unlock.ko</span><span id="st-unlock" class="unk">checking…</span></div>
+  <div class="row"><span>probe_ret</span><span id="st-pret" class="unk">-</span></div>
+  <div class="row"><span>probe_addr</span><span id="st-paddr" class="unk">-</span></div>
+  <div class="row"><span>node_created</span><span id="st-nc" class="unk">-</span></div>
+  <div class="row"><span>SELinux</span><span id="st-sel" class="unk">-</span></div>
+</div>
+
+<div class="btns">
+  <button class="primary" id="btn-activate">Activate</button>
+  <button id="btn-verity">Verity</button>
+  <button id="btn-refresh">Refresh</button>
+</div>
+
+<div class="card">
+  <h1>Log</h1>
+  <pre id="log">loading…</pre>
+  <div class="hint" id="hint"></div>
+</div>
+
+<script>
+'use strict';
+var MODDIR = '/data/adb/modules/mgz_unlock';
+
+// ---- KernelSU manager webui bridge ---------------------------------------
+// ksu.exec(cmd, optionsJSON, callbackName); the manager later calls
+// window[callbackName](errno, stdout, stderr). SukiSU and KernelSU Next
+// expose the same API.
+function ksuExec(cmd) {
+  return new Promise(function (resolve) {
+    if (typeof ksu === 'undefined' || typeof ksu.exec !== 'function') {
+      resolve({ errno: -1, stdout: '',
+                stderr: 'ksu bridge unavailable — open this panel from the manager' });
+      return;
+    }
+    var cb = '__mgz_cb_' + Date.now() + '_' + Math.floor(Math.random() * 1e6);
+    window[cb] = function (errno, stdout, stderr) {
+      delete window[cb];
+      resolve({ errno: errno, stdout: stdout || '', stderr: stderr || '' });
+    };
+    try {
+      ksu.exec(cmd, '{}', cb);
+    } catch (e) {
+      delete window[cb];
+      resolve({ errno: -1, stdout: '', stderr: String(e) });
+    }
+  });
+}
+
+function toast(msg) {
+  if (typeof ksu !== 'undefined' && typeof ksu.toast === 'function') {
+    try { ksu.toast(msg); } catch (e) { /* ignore */ }
+  }
+}
+
+function mark(id, cls, text) {
+  var el = document.getElementById(id);
+  el.className = cls;
+  el.textContent = text;
+}
+
+function yesNo(id, yes) {
+  mark(id, yes ? 'ok' : 'bad', yes ? 'yes' : 'no');
+}
+
+function orDash(s) { return s ? s : '-'; }
+
+// One shell invocation collects every fact shown on the card.
+var COLLECT =
+  'echo "node=$( [ -e /dev/gzvm ] && echo yes || echo no )"; ' +
+  'echo "gzvm=$( grep -q \'^gzvm \' /proc/modules 2>/dev/null && echo yes || echo no )"; ' +
+  'echo "unlock=$( grep -q \'^gzvm_unlock \' /proc/modules 2>/dev/null && echo yes || echo no )"; ' +
+  'echo "pret=$( cat /sys/module/gzvm_unlock/parameters/probe_ret 2>/dev/null )"; ' +
+  'echo "paddr=$( cat /sys/module/gzvm_unlock/parameters/probe_addr 2>/dev/null )"; ' +
+  'echo "nc=$( cat /sys/module/gzvm_unlock/parameters/node_created 2>/dev/null )"; ' +
+  'echo "sel=$( getenforce 2>/dev/null )"; ' +
+  'echo "---log---"; ' +
+  'tail -n 40 ' + MODDIR + '/logs/mgz_unlock.log 2>/dev/null';
+
+function renderLog(lines) {
+  var i = lines.indexOf('---log---');
+  var logText = i >= 0 ? lines.slice(i + 1).join('\n') : '';
+  document.getElementById('log').textContent =
+    logText || '(no log yet — nothing has run)';
+}
+
+function parseKV(lines) {
+  var kv = {}, re = /^([a-z]+)=(.*)$/;
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(re);
+    if (m && m[1] !== 'log') kv[m[1]] = m[2];
+  }
+  return kv;
+}
+
+async function refresh() {
+  var r = await ksuExec(COLLECT);
+  if (r.errno !== 0) {
+    document.getElementById('hint').textContent = r.stderr || 'exec failed';
+    return;
+  }
+  var lines = r.stdout.replace(/\r/g, '').split('\n');
+  var kv = parseKV(lines);
+  renderLog(lines);
+
+  yesNo('st-node', kv.node === 'yes');
+  yesNo('st-gzvm', kv.gzvm === 'yes');
+  yesNo('st-unlock', kv.unlock === 'yes');
+  mark('st-pret', 'unk', orDash(kv.pret));
+  mark('st-paddr', 'unk', orDash(kv.paddr));
+  mark('st-nc', kv.nc === '1' ? 'ok' : 'unk', orDash(kv.nc));
+  mark('st-sel', kv.sel === 'Enforcing' ? 'unk' : 'unk', orDash(kv.sel));
+}
+
+function setButtons(disabled) {
+  ['btn-activate', 'btn-verity', 'btn-refresh'].forEach(function (id) {
+    document.getElementById(id).disabled = disabled;
+  });
+}
+
+async function runAction(label, cmd) {
+  setButtons(true);
+  document.getElementById('hint').textContent = label + '…';
+  var r = await ksuExec(cmd);
+  document.getElementById('hint').textContent =
+    r.errno === 0 ? label + ': done' : label + ': failed';
+  document.getElementById('log').textContent = r.stdout || r.stderr;
+  toast(label + (r.errno === 0 ? ': done' : ': failed'));
+  await refresh();
+  setButtons(false);
+}
+
+document.getElementById('btn-activate').onclick = function () {
+  runAction('Activate',
+    '. ' + MODDIR + '/load.sh && . ' + MODDIR + '/status.sh && ' +
+    'mgz_load && update_module_description');
+};
+
+document.getElementById('btn-verity').onclick = function () {
+  runAction('Verity',
+    '[ -x ' + MODDIR + '/mgz ] && ' + MODDIR + '/mgz verity || ' +
+    'echo "mgz is not in the module dir; run it from a terminal instead"');
+};
+
+document.getElementById('btn-refresh').onclick = refresh;
+
+refresh();
+</script>
+</body>
+</html>
