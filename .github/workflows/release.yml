@@ -24,7 +24,7 @@ env:
 
 jobs:
   cli:
-    name: CLI (${{ env.ABI }})
+    name: CLI (arm64-v8a)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
